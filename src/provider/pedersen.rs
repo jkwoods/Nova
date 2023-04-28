@@ -30,7 +30,8 @@ pub struct CommitmentGens<G: Group> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct Commitment<G: Group> {
-  pub(crate) comm: G,
+  /// commitment element
+  pub comm: G,
 }
 
 /// A type that holds a compressed commitment
