@@ -2,6 +2,7 @@
 
 // public modules to be used as an evaluation engine with Spartan
 pub mod hyperkzg;
+pub mod hyrax;
 pub mod ipa_pc;
 
 // crate-public modules, made crate-public mostly for tests
