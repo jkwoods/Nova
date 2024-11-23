@@ -282,7 +282,7 @@ where
     })
   }
 
-  pub fn verify(
+  fn verify(
     &self,
     ck: &CommitmentKey<E>,
     ck_c: &CommitmentKey<E>,

@@ -319,7 +319,7 @@ where
       return Err(NovaError::ProofVerifyError);
     }
 
-    let mut challenges = (0..self.P_L_vec.len())
+    let mut challenges = (0..lg_n)
       .map(|i| {
         transcript.absorb(b"L", &self.P_L_vec[i]);
         transcript.absorb(b"R", &self.P_R_vec[i]);
@@ -402,7 +402,7 @@ where
 
     transcript.absorb(b"L", &P_L);
     transcript.absorb(b"R", &P_R);
-    let chal = transcript.squeeze(b"r")?;
+    let chal = transcript.squeeze(b"challenge_r")?;
 
     let chal_square = chal * chal;
     let chal_inverse = chal.invert().unwrap();
@@ -437,7 +437,7 @@ where
     ))
   }
 
-  fn inner_product(a: &[E::Scalar], b: &[E::Scalar]) -> E::Scalar {
+  pub(crate) fn inner_product(a: &[E::Scalar], b: &[E::Scalar]) -> E::Scalar {
     assert_eq!(a.len(), b.len());
     (0..a.len())
       .into_par_iter()

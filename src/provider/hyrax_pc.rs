@@ -235,24 +235,13 @@ where
 #[cfg(test)]
 mod tests {
   use super::*;
-  type G = pasta_curves::pallas::Point;
+  type E = crate::provider::PallasEngine;
   use rand::rngs::OsRng;
 
-  fn inner_product<T>(a: &[T], b: &[T]) -> T
-  where
-    T: Field + Send + Sync,
-  {
-    assert_eq!(a.len(), b.len());
-    (0..a.len())
-      .into_par_iter()
-      .map(|i| a[i] * b[i])
-      .reduce(T::zero, |x, y| x + y)
-  }
-
   fn evaluate_with_LR(
-    Z: &[<G as Group>::Scalar],
-    r: &[<G as Group>::Scalar],
-  ) -> <G as Group>::Scalar {
+    Z: &[<E as Engine>::Scalar],
+    r: &[<E as Engine>::Scalar],
+  ) -> <E as Engine>::Scalar {
     let eq = EqPolynomial::new(r.to_vec());
     let (L, R) = eq.compute_factored_evals();
 
@@ -271,18 +260,18 @@ mod tests {
       .map(|i| {
         (0..m)
           .map(|j| L[j] * Z[j * m + i])
-          .fold(<G as Group>::Scalar::zero(), |acc, item| acc + item)
+          .fold(<E as Engine>::Scalar::ZERO, |acc, item| acc + item)
       })
-      .collect::<Vec<<G as Group>::Scalar>>();
+      .collect::<Vec<<E as Engine>::Scalar>>();
 
     // compute dot product between LZ and R
-    inner_product(&LZ, &R)
+    InnerProductArgument::<E>::inner_product(&LZ, &R)
   }
 
-  fn to_scalar(x: usize) -> <G as Group>::Scalar {
+  fn to_scalar(x: usize) -> <E as Engine>::Scalar {
     (0..x)
-      .map(|_i| <G as Group>::Scalar::one())
-      .fold(<G as Group>::Scalar::zero(), |acc, item| acc + item)
+      .map(|_i| <E as Engine>::Scalar::ONE)
+      .fold(<E as Engine>::Scalar::ZERO, |acc, item| acc + item)
   }
 
   #[test]
@@ -316,14 +305,14 @@ mod tests {
     let eval = poly.evaluate(&r);
     assert_eq!(eval, to_scalar(28));
 
-    let prover_gens = HyraxPC::new(num_vars, b"poly_test");
+    let prover_gens = HyraxPC::setup(b"poly_test", num_vars);
     let (poly_comm, blinds) = prover_gens.commit(&poly);
 
-    let mut prover_transcript = Transcript::new(b"example");
+    let mut prover_transcript = <E as Engine>::TE::new(b"example");
 
-    let blind_eval = <G as Group>::Scalar::random(&mut OsRng);
+    let blind_eval = <E as Engine>::Scalar::random(&mut OsRng);
 
-    let (ipa_proof, _ipa_witness, comm_eval): (InnerProductArgument<G>, InnerProductWitness<G>, _) =
+    let (ipa_proof, _ipa_witness, comm_eval): (InnerProductArgument<E>, InnerProductWitness<E>, _) =
       prover_gens
         .prove_eval(
           &poly,
@@ -338,8 +327,8 @@ mod tests {
 
     // Verifier actions
 
-    let verifier_gens = HyraxPC::new(num_vars, b"poly_test");
-    let mut verifier_transcript = Transcript::new(b"example");
+    let verifier_gens = HyraxPC::setup(b"poly_test", num_vars);
+    let mut verifier_transcript = <E as Engine>::TE::new(b"example");
 
     let res = verifier_gens.verify_eval(
       &r,
