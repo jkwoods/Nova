@@ -12,7 +12,7 @@ pub(crate) mod pasta;
 pub(crate) mod pedersen;
 pub mod poseidon;
 pub(crate) mod secp_secq;
-pub(crate) mod traits;
+pub mod traits;
 
 // crate-private modules
 mod keccak;
