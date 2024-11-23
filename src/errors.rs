@@ -67,6 +67,9 @@ pub enum NovaError {
   /// returned when the prover cannot prove the provided statement due to completeness error
   #[error("InternalError")]
   InternalError,
+  /// returned when hyrax has a zk ipa problem
+  #[error("InvlidIPA")]
+  InvalidIPA,
 }
 
 impl From<bellpepper_core::SynthesisError> for NovaError {

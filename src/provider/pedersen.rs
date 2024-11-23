@@ -3,7 +3,7 @@ use crate::{
   errors::NovaError,
   provider::traits::DlogGroup,
   traits::{
-    commitment::{CommitmentEngineTrait, CommitmentTrait, Len},
+    commitment::{AffineTrait, CommitmentEngineTrait, CommitmentTrait, GetGeneratorsTrait, Len},
     AbsorbInROTrait, Engine, ROTrait, TranscriptReprTrait,
   },
 };
@@ -35,6 +35,26 @@ where
   }
 }
 
+impl<E: Engine> GetGeneratorsTrait<E> for CommitmentKey<E>
+where
+  E::GE: DlogGroup,
+{
+  fn from_gens(
+    ck: Vec<<E::GE as DlogGroup>::AffineGroupElement>,
+    h: Option<<E::GE as DlogGroup>::AffineGroupElement>,
+  ) -> Self {
+    Self { ck, h }
+  }
+
+  fn get_ck(&self) -> &Vec<<E::GE as DlogGroup>::AffineGroupElement> {
+    &self.ck
+  }
+
+  fn get_h(&self) -> &<E::GE as DlogGroup>::AffineGroupElement {
+    self.h.as_ref().unwrap()
+  }
+}
+
 /// A type that holds blinding generator
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DerandKey<E: Engine>
@@ -57,6 +77,15 @@ where
 {
   fn to_coordinates(&self) -> (E::Base, E::Base, bool) {
     self.comm.to_coordinates()
+  }
+}
+
+impl<E: Engine> AffineTrait<E> for Commitment<E>
+where
+  E::GE: DlogGroup,
+{
+  fn affine(&self) -> <E::GE as DlogGroup>::AffineGroupElement {
+    self.comm.affine()
   }
 }
 

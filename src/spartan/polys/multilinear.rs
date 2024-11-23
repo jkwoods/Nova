@@ -57,6 +57,21 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
     self.Z.len()
   }
 
+  /// added from old TODO
+  pub fn bound(&self, L: &[Scalar]) -> Vec<Scalar> {
+    let (left_num_vars, right_num_vars) = (self.num_vars / 2, self.num_vars - self.num_vars / 2);
+    let L_size = (2_usize).pow(left_num_vars as u32);
+    let R_size = (2_usize).pow(right_num_vars as u32);
+
+    (0..R_size)
+      .map(|i| {
+        (0..L_size)
+          .map(|j| L[j] * self.Z[j * R_size + i])
+          .fold(Scalar::ZERO, |x, y| x + y)
+      })
+      .collect()
+  }
+
   /// Binds the polynomial's top variable using the given scalar.
   ///
   /// This operation modifies the polynomial in-place.

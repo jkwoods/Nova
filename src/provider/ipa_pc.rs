@@ -108,7 +108,7 @@ fn inner_product<T: Field + Send + Sync>(a: &[T], b: &[T]) -> T {
 
 /// An inner product instance consists of a commitment to a vector `a` and another vector `b`
 /// and the claim that c = <a, b>.
-pub struct InnerProductInstance<E: Engine> {
+struct InnerProductInstance<E: Engine> {
   comm_a_vec: Commitment<E>,
   b_vec: Vec<E::Scalar>,
   c: E::Scalar,
@@ -119,7 +119,7 @@ where
   E: Engine,
   E::GE: DlogGroup,
 {
-  fn new(comm_a_vec: &Commitment<E>, b_vec: &[E::Scalar], c: &E::Scalar) -> Self {
+  pub fn new(comm_a_vec: &Commitment<E>, b_vec: &[E::Scalar], c: &E::Scalar) -> Self {
     InnerProductInstance {
       comm_a_vec: *comm_a_vec,
       b_vec: b_vec.to_vec(),
@@ -282,7 +282,7 @@ where
     })
   }
 
-  fn verify(
+  pub fn verify(
     &self,
     ck: &CommitmentKey<E>,
     ck_c: &CommitmentKey<E>,

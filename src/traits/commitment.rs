@@ -1,6 +1,9 @@
 //! This module defines a collection of traits that define the behavior of a commitment engine
 //! We require the commitment engine to provide a commitment to vectors with a single group element
-use crate::traits::{AbsorbInROTrait, Engine, TranscriptReprTrait};
+use crate::{
+  provider::traits::DlogGroup,
+  traits::{AbsorbInROTrait, Engine, TranscriptReprTrait},
+};
 use core::{
   fmt::Debug,
   ops::{Add, Mul, MulAssign},
@@ -34,11 +37,40 @@ pub trait CommitmentTrait<E: Engine>:
   fn to_coordinates(&self) -> (E::Base, E::Base, bool);
 }
 
+/// A trait to convert commitments
+pub trait AffineTrait<E: Engine> {
+  /// Returns the affine representation of the commitment
+  fn affine(&self) -> <E::GE as DlogGroup>::AffineGroupElement
+  where
+    E::GE: DlogGroup;
+}
+
 /// A trait that helps determine the length of a structure.
 /// Note this does not impose any memory representation contraints on the structure.
 pub trait Len {
   /// Returns the length of the structure.
   fn length(&self) -> usize;
+}
+
+/// A trait to get generators from a CommitmentKey
+pub trait GetGeneratorsTrait<E: Engine> {
+  /// makes new CommitmentKey
+  fn from_gens(
+    ck: Vec<<E::GE as DlogGroup>::AffineGroupElement>,
+    h: Option<<E::GE as DlogGroup>::AffineGroupElement>,
+  ) -> Self
+  where
+    E::GE: DlogGroup;
+
+  /// Returns generators
+  fn get_ck(&self) -> &Vec<<E::GE as DlogGroup>::AffineGroupElement>
+  where
+    E::GE: DlogGroup;
+
+  /// Returns blinding generator
+  fn get_h(&self) -> &<E::GE as DlogGroup>::AffineGroupElement
+  where
+    E::GE: DlogGroup;
 }
 
 /// A trait that ties different pieces of the commitment generation together
