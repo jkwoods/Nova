@@ -43,6 +43,7 @@ where
   E: Engine,
   E::GE: DlogGroup,
 {
+  /// new zk ipa
   pub fn new(comm_x_vec: &Commitment<E>, a_vec: &[E::Scalar], comm_y: &Commitment<E>) -> Self {
     InnerProductInstance {
       comm_x_vec: *comm_x_vec,

@@ -20,7 +20,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// Structure that holds the blinds of a PC
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct PolyCommitBlinds<E: Engine> {
   /// Blinds
@@ -28,7 +28,7 @@ pub struct PolyCommitBlinds<E: Engine> {
 }
 
 /// Structure that holds Poly Commits
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct PolyCommit<E: Engine>
 where
