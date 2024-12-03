@@ -74,13 +74,12 @@ where
   pub fn setup(label: &'static [u8], num_vars: usize) -> Self {
     let right = num_vars - num_vars / 2;
 
-    let gens = E::GE::from_label(label, (2usize).pow(right as u32) + 3);
-    let (h_v, gens) = gens.split_first().unwrap();
-    let (h_s, gens) = gens.split_first().unwrap();
+    let gens = E::GE::from_label(label, (2usize).pow(right as u32) + 2);
+    let (h, gens) = gens.split_first().unwrap();
     let (g_s, g_v) = gens.split_first().unwrap();
 
-    let ck_v = CommitmentKey::<E>::from_gens(g_v.to_vec(), Some(h_v.clone()));
-    let ck_s = CommitmentKey::<E>::from_gens(vec![g_s.clone()], Some(h_s.clone()));
+    let ck_v = CommitmentKey::<E>::from_gens(g_v.to_vec(), Some(h.clone()));
+    let ck_s = CommitmentKey::<E>::from_gens(vec![g_s.clone()], Some(h.clone()));
 
     HyraxPC { ck_v, ck_s }
   }
