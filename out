@@ -1,0 +1,1226 @@
+   Compiling nova-snark v0.37.0 (/Users/jesskwoods/Repos/nova)
+error[E0308]: mismatched types
+   --> src/bellpepper/r1cs.rs:39:42
+    |
+39  |     let W = R1CSWitness::<E>::new(shape, self.aux_assignment())?;
+    |             ---------------------        ^^^^^^^^^^^^^^^^^^^^^ expected `Vec<&[<E as Engine>::Scalar]>`, found `&[<E as Engine>::Scalar]`
+    |             |
+    |             arguments to this function are incorrect
+    |
+    = note: expected struct `Vec<&[<E as traits::Engine>::Scalar]>`
+            found reference `&[<E as traits::Engine>::Scalar]`
+note: associated function defined here
+   --> src/r1cs/mod.rs:495:10
+    |
+495 |   pub fn new(S: &R1CSShape<E>, W: Vec<&[E::Scalar]>) -> Result<R1CSWitness<E>, NovaError> {
+    |          ^^^                   --------------------
+
+error[E0308]: mismatched types
+   --> src/bellpepper/r1cs.rs:83:49
+    |
+83  |         let S = R1CSShape::new(num_constraints, num_vars, num_inputs - 1, A, B, C).unwrap();
+    |                 --------------                  ^^^^^^^^ expected `Vec<usize>`, found `usize`
+    |                 |
+    |                 arguments to this function are incorrect
+...
+92  | impl_nova_shape!(ShapeCS);
+    | ------------------------- in this macro invocation
+    |
+    = note: expected struct `Vec<usize>`
+                 found type `usize`
+note: associated function defined here
+   --> src/r1cs/mod.rs:105:10
+    |
+105 |   pub fn new(
+    |          ^^^
+106 |     num_cons: usize,
+107 |     num_vars: Vec<usize>,
+    |     --------------------
+    = note: this error originates in the macro `impl_nova_shape` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+   --> src/bellpepper/r1cs.rs:83:49
+    |
+83  |         let S = R1CSShape::new(num_constraints, num_vars, num_inputs - 1, A, B, C).unwrap();
+    |                 --------------                  ^^^^^^^^ expected `Vec<usize>`, found `usize`
+    |                 |
+    |                 arguments to this function are incorrect
+...
+93  | impl_nova_shape!(TestShapeCS);
+    | ----------------------------- in this macro invocation
+    |
+    = note: expected struct `Vec<usize>`
+                 found type `usize`
+note: associated function defined here
+   --> src/r1cs/mod.rs:105:10
+    |
+105 |   pub fn new(
+    |          ^^^
+106 |     num_cons: usize,
+107 |     num_vars: Vec<usize>,
+    |     --------------------
+    = note: this error originates in the macro `impl_nova_shape` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0284]: type annotations needed
+   --> src/r1cs/mod.rs:120:64
+    |
+120 |           if row >= num_cons || col > num_io + num_vars.iter().sum() {
+    |                                              -                 ^^^ cannot infer type of the type parameter `S` declared on the method `sum`
+    |                                              |
+    |                                              type must be known at this point
+    |
+    = note: cannot satisfy `<usize as Add<_>>::Output == usize`
+help: consider specifying the generic argument
+    |
+120 |           if row >= num_cons || col > num_io + num_vars.iter().sum::<S>() {
+    |                                                                   +++++
+
+error[E0283]: type annotations needed
+   --> src/r1cs/mod.rs:120:64
+    |
+120 |           if row >= num_cons || col > num_io + num_vars.iter().sum() {
+    |                                              -                 ^^^ cannot infer type of the type parameter `S` declared on the method `sum`
+    |                                              |
+    |                                              type must be known at this point
+    |
+    = note: multiple `impl`s satisfying `usize: Add<_>` found in the `num_bigint` crate:
+            - impl Add<BigInt> for usize;
+            - impl Add<BigUint> for usize;
+help: consider specifying the generic argument
+    |
+120 |           if row >= num_cons || col > num_io + num_vars.iter().sum::<S>() {
+    |                                                                   +++++
+
+error[E0283]: type annotations needed
+   --> src/r1cs/mod.rs:120:64
+    |
+120 |           if row >= num_cons || col > num_io + num_vars.iter().sum() {
+    |                                                                ^^^ cannot infer type of the type parameter `S` declared on the method `sum`
+    |
+    = note: multiple `impl`s satisfying `_: Sum<&usize>` found in the following crates: `core`, `num_bigint`:
+            - impl<'a> Sum<&'a usize> for usize;
+            - impl<T> Sum<T> for BigInt
+              where <BigInt as Add<T>>::Output == BigInt, BigInt: Add<T>;
+            - impl<T> Sum<T> for BigUint
+              where <BigUint as Add<T>>::Output == BigUint, BigUint: Add<T>;
+note: required by a bound in `std::iter::Iterator::sum`
+   --> /rustc/129f3b9964af4d4a709d1383930ade12dfe7c081/library/core/src/iter/traits/iterator.rs:3575:5
+help: consider specifying the generic argument
+    |
+120 |           if row >= num_cons || col > num_io + num_vars.iter().sum::<S>() {
+    |                                                                   +++++
+
+error[E0282]: type annotations needed
+   --> src/r1cs/mod.rs:158:43
+    |
+158 |     let vars_valid = self.num_vars.iter().sum().next_power_of_two() == self.num_vars.iter().sum();
+    |                                           ^^^ cannot infer type of the type parameter `S` declared on the method `sum`
+    |
+help: consider specifying the generic argument
+    |
+158 |     let vars_valid = self.num_vars.iter().sum::<S>().next_power_of_two() == self.num_vars.iter().sum();
+    |                                              +++++
+
+error[E0284]: type annotations needed
+   --> src/r1cs/mod.rs:167:54
+    |
+167 |     if z.len() != self.num_io + self.num_vars.iter().sum() + 1 {
+    |                               -                      ^^^ cannot infer type of the type parameter `S` declared on the method `sum`
+    |                               |
+    |                               type must be known at this point
+    |
+    = note: cannot satisfy `<usize as Add<_>>::Output == _`
+help: consider specifying the generic argument
+    |
+167 |     if z.len() != self.num_io + self.num_vars.iter().sum::<S>() + 1 {
+    |                                                         +++++
+
+error[E0283]: type annotations needed
+   --> src/r1cs/mod.rs:167:54
+    |
+167 |     if z.len() != self.num_io + self.num_vars.iter().sum() + 1 {
+    |                               -                      ^^^ cannot infer type of the type parameter `S` declared on the method `sum`
+    |                               |
+    |                               type must be known at this point
+    |
+    = note: multiple `impl`s satisfying `usize: Add<_>` found in the `num_bigint` crate:
+            - impl Add<BigInt> for usize;
+            - impl Add<BigUint> for usize;
+help: consider specifying the generic argument
+    |
+167 |     if z.len() != self.num_io + self.num_vars.iter().sum::<S>() + 1 {
+    |                                                         +++++
+
+error[E0283]: type annotations needed
+   --> src/r1cs/mod.rs:167:54
+    |
+167 |     if z.len() != self.num_io + self.num_vars.iter().sum() + 1 {
+    |                                                      ^^^ cannot infer type of the type parameter `S` declared on the method `sum`
+    |
+    = note: multiple `impl`s satisfying `_: Sum<&usize>` found in the following crates: `core`, `num_bigint`:
+            - impl<'a> Sum<&'a usize> for usize;
+            - impl<T> Sum<T> for BigInt
+              where <BigInt as Add<T>>::Output == BigInt, BigInt: Add<T>;
+            - impl<T> Sum<T> for BigUint
+              where <BigUint as Add<T>>::Output == BigUint, BigUint: Add<T>;
+note: required by a bound in `std::iter::Iterator::sum`
+   --> /rustc/129f3b9964af4d4a709d1383930ade12dfe7c081/library/core/src/iter/traits/iterator.rs:3575:5
+help: consider specifying the generic argument
+    |
+167 |     if z.len() != self.num_io + self.num_vars.iter().sum::<S>() + 1 {
+    |                                                         +++++
+
+error[E0283]: type annotations needed
+   --> src/r1cs/mod.rs:167:60
+    |
+167 |     if z.len() != self.num_io + self.num_vars.iter().sum() + 1 {
+    |                                                            ^ cannot infer type
+    |
+    = note: multiple `impl`s satisfying `_: Add<i32>` found in the following crates: `core`, `num_bigint`:
+            - impl Add<i32> for &BigInt;
+            - impl Add<i32> for BigInt;
+            - impl<'a> Add<i32> for &'a i32;
+            - impl<host> Add for i32
+              where the constant `host` has type `bool`;
+
+error[E0308]: mismatched types
+   --> src/r1cs/mod.rs:187:31
+    |
+187 |       assert_eq!(w_vec.len(), size);
+    |                               ^^^^ expected `usize`, found `&usize`
+    |
+help: consider dereferencing the borrow
+    |
+187 |       assert_eq!(w_vec.len(), *size);
+    |                               +
+
+error[E0599]: no method named `len` found for reference `&<E as traits::Engine>::Scalar` in the current scope
+   --> src/r1cs/mod.rs:189:37
+    |
+189 |     assert_eq!(W.E.iter().map(|v| v.len()).sum(), self.num_cons);
+    |                                     ^^^ method not found in `&<E as Engine>::Scalar`
+
+error[E0277]: a value of type `Vec<<E as traits::Engine>::Scalar>` cannot be built from an iterator over elements of type `&<E as traits::Engine>::Scalar`
+   --> src/r1cs/mod.rs:195:38
+    |
+195 |         W.W.iter().flatten().clone().collect(),
+    |                                      ^^^^^^^ value of type `Vec<<E as traits::Engine>::Scalar>` cannot be built from `std::iter::Iterator<Item=&<E as traits::Engine>::Scalar>`
+    |
+    = help: the trait `FromIterator<&<E as traits::Engine>::Scalar>` is not implemented for `Vec<<E as traits::Engine>::Scalar>`
+note: the method call chain might not have had the expected associated types
+   --> src/r1cs/mod.rs:195:13
+    |
+195 |         W.W.iter().flatten().clone().collect(),
+    |         --- ^^^^^^           ------- `Iterator::Item` is `&<E as Engine>::Scalar` here
+    |         |   |
+    |         |   `Iterator::Item` is `&Vec<<E as Engine>::Scalar>` here
+    |         this expression has type `Vec<Vec<<E as Engine>::Scalar>>`
+note: required by a bound in `std::iter::Iterator::collect`
+   --> /rustc/129f3b9964af4d4a709d1383930ade12dfe7c081/library/core/src/iter/traits/iterator.rs:2000:5
+help: consider introducing a `where` clause, but there might be an alternative better way to express this requirement
+    |
+103 | impl<E: Engine> R1CSShape<E> where Vec<<E as traits::Engine>::Scalar>: FromIterator<&<E as traits::Engine>::Scalar> {
+    |                              ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+error[E0308]: mismatched types
+   --> src/r1cs/mod.rs:215:40
+    |
+215 |             .for_each(|(w_vec, blind)| CE::<E>::commit(ck, w_vec, blind))
+    |                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `()`, found associated type
+    |
+    = note:    expected unit type `()`
+            found associated type `<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment`
+    = help: consider constraining the associated type `<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment` to `()`
+    = note: for more information, visit https://doc.rust-lang.org/book/ch19-03-advanced-traits.html
+help: consider using a semicolon here
+    |
+215 |             .for_each(|(w_vec, blind)| { CE::<E>::commit(ck, w_vec, blind); })
+    |                                        +                                  +++
+
+error[E0277]: can't compare `Vec<<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment>` with `()`
+   --> src/r1cs/mod.rs:219:16
+    |
+219 |       U.comm_W == comm_W && U.comm_E == comm_E
+    |                ^^ no implementation for `Vec<<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment> == ()`
+    |
+    = help: the trait `PartialEq<()>` is not implemented for `Vec<<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment>`
+    = help: the following other types implement trait `PartialEq<Rhs>`:
+              <Vec<T, A1> as PartialEq<Vec<U, A2>>>
+              <Vec<T, A> as PartialEq<&[U; N]>>
+              <Vec<T, A> as PartialEq<&[U]>>
+              <Vec<T, A> as PartialEq<&mut [U]>>
+              <Vec<T, A> as PartialEq<[U; N]>>
+              <Vec<T, A> as PartialEq<[U]>>
+
+error[E0308]: mismatched types
+   --> src/r1cs/mod.rs:237:31
+    |
+237 |       assert_eq!(w_vec.len(), size);
+    |                               ^^^^ expected `usize`, found `&usize`
+    |
+help: consider dereferencing the borrow
+    |
+237 |       assert_eq!(w_vec.len(), *size);
+    |                               +
+
+error[E0277]: a value of type `Vec<<E as traits::Engine>::Scalar>` cannot be built from an iterator over elements of type `&<E as traits::Engine>::Scalar`
+   --> src/r1cs/mod.rs:244:38
+    |
+244 |         W.W.iter().flatten().clone().collect(),
+    |                                      ^^^^^^^ value of type `Vec<<E as traits::Engine>::Scalar>` cannot be built from `std::iter::Iterator<Item=&<E as traits::Engine>::Scalar>`
+    |
+    = help: the trait `FromIterator<&<E as traits::Engine>::Scalar>` is not implemented for `Vec<<E as traits::Engine>::Scalar>`
+note: the method call chain might not have had the expected associated types
+   --> src/r1cs/mod.rs:244:13
+    |
+244 |         W.W.iter().flatten().clone().collect(),
+    |         --- ^^^^^^           ------- `Iterator::Item` is `&<E as Engine>::Scalar` here
+    |         |   |
+    |         |   `Iterator::Item` is `&Vec<<E as Engine>::Scalar>` here
+    |         this expression has type `Vec<Vec<<E as Engine>::Scalar>>`
+note: required by a bound in `std::iter::Iterator::collect`
+   --> /rustc/129f3b9964af4d4a709d1383930ade12dfe7c081/library/core/src/iter/traits/iterator.rs:2000:5
+help: consider introducing a `where` clause, but there might be an alternative better way to express this requirement
+    |
+103 | impl<E: Engine> R1CSShape<E> where Vec<<E as traits::Engine>::Scalar>: FromIterator<&<E as traits::Engine>::Scalar> {
+    |                              ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+error[E0308]: mismatched types
+   --> src/r1cs/mod.rs:263:36
+    |
+263 |         .for_each(|(w_vec, blind)| CE::<E>::commit(ck, w_vec, blind));
+    |                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `()`, found associated type
+    |
+    = note:    expected unit type `()`
+            found associated type `<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment`
+    = help: consider constraining the associated type `<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment` to `()`
+    = note: for more information, visit https://doc.rust-lang.org/book/ch19-03-advanced-traits.html
+help: consider using a semicolon here
+    |
+263 |         .for_each(|(w_vec, blind)| { CE::<E>::commit(ck, w_vec, blind); });
+    |                                    +                                  +++
+
+error[E0277]: can't compare `Vec<<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment>` with `()`
+   --> src/r1cs/mod.rs:259:7
+    |
+259 |       == W
+    |       ^^ no implementation for `Vec<<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment> == ()`
+    |
+    = help: the trait `PartialEq<()>` is not implemented for `Vec<<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment>`
+    = help: the following other types implement trait `PartialEq<Rhs>`:
+              <Vec<T, A1> as PartialEq<Vec<U, A2>>>
+              <Vec<T, A> as PartialEq<&[U; N]>>
+              <Vec<T, A> as PartialEq<&[U]>>
+              <Vec<T, A> as PartialEq<&mut [U]>>
+              <Vec<T, A> as PartialEq<[U; N]>>
+              <Vec<T, A> as PartialEq<[U]>>
+
+error[E0277]: a value of type `Vec<<E as traits::Engine>::Scalar>` cannot be built from an iterator over elements of type `&<E as traits::Engine>::Scalar`
+   --> src/r1cs/mod.rs:284:37
+    |
+284 |       W1.W.iter().flatten().clone().collect(),
+    |                                     ^^^^^^^ value of type `Vec<<E as traits::Engine>::Scalar>` cannot be built from `std::iter::Iterator<Item=&<E as traits::Engine>::Scalar>`
+    |
+    = help: the trait `FromIterator<&<E as traits::Engine>::Scalar>` is not implemented for `Vec<<E as traits::Engine>::Scalar>`
+note: the method call chain might not have had the expected associated types
+   --> src/r1cs/mod.rs:284:12
+    |
+284 |       W1.W.iter().flatten().clone().collect(),
+    |       ---- ^^^^^^           ------- `Iterator::Item` is `&<E as Engine>::Scalar` here
+    |       |    |
+    |       |    `Iterator::Item` is `&Vec<<E as Engine>::Scalar>` here
+    |       this expression has type `Vec<Vec<<E as Engine>::Scalar>>`
+note: required by a bound in `std::iter::Iterator::collect`
+   --> /rustc/129f3b9964af4d4a709d1383930ade12dfe7c081/library/core/src/iter/traits/iterator.rs:2000:5
+help: consider introducing a `where` clause, but there might be an alternative better way to express this requirement
+    |
+103 | impl<E: Engine> R1CSShape<E> where Vec<<E as traits::Engine>::Scalar>: FromIterator<&<E as traits::Engine>::Scalar> {
+    |                              ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+error[E0277]: a value of type `Vec<<E as traits::Engine>::Scalar>` cannot be built from an iterator over elements of type `&<E as traits::Engine>::Scalar`
+   --> src/r1cs/mod.rs:290:37
+    |
+290 |       W2.W.iter().flatten().clone().collect(),
+    |                                     ^^^^^^^ value of type `Vec<<E as traits::Engine>::Scalar>` cannot be built from `std::iter::Iterator<Item=&<E as traits::Engine>::Scalar>`
+    |
+    = help: the trait `FromIterator<&<E as traits::Engine>::Scalar>` is not implemented for `Vec<<E as traits::Engine>::Scalar>`
+note: the method call chain might not have had the expected associated types
+   --> src/r1cs/mod.rs:290:12
+    |
+290 |       W2.W.iter().flatten().clone().collect(),
+    |       ---- ^^^^^^           ------- `Iterator::Item` is `&<E as Engine>::Scalar` here
+    |       |    |
+    |       |    `Iterator::Item` is `&Vec<<E as Engine>::Scalar>` here
+    |       this expression has type `Vec<Vec<<E as Engine>::Scalar>>`
+note: required by a bound in `std::iter::Iterator::collect`
+   --> /rustc/129f3b9964af4d4a709d1383930ade12dfe7c081/library/core/src/iter/traits/iterator.rs:2000:5
+help: consider introducing a `where` clause, but there might be an alternative better way to express this requirement
+    |
+103 | impl<E: Engine> R1CSShape<E> where Vec<<E as traits::Engine>::Scalar>: FromIterator<&<E as traits::Engine>::Scalar> {
+    |                              ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+error[E0277]: a value of type `Vec<<E as traits::Engine>::Scalar>` cannot be built from an iterator over elements of type `&<E as traits::Engine>::Scalar`
+   --> src/r1cs/mod.rs:332:37
+    |
+332 |       W1.W.iter().flatten().clone().collect(),
+    |                                     ^^^^^^^ value of type `Vec<<E as traits::Engine>::Scalar>` cannot be built from `std::iter::Iterator<Item=&<E as traits::Engine>::Scalar>`
+    |
+    = help: the trait `FromIterator<&<E as traits::Engine>::Scalar>` is not implemented for `Vec<<E as traits::Engine>::Scalar>`
+note: the method call chain might not have had the expected associated types
+   --> src/r1cs/mod.rs:332:12
+    |
+332 |       W1.W.iter().flatten().clone().collect(),
+    |       ---- ^^^^^^           ------- `Iterator::Item` is `&<E as Engine>::Scalar` here
+    |       |    |
+    |       |    `Iterator::Item` is `&Vec<<E as Engine>::Scalar>` here
+    |       this expression has type `Vec<Vec<<E as Engine>::Scalar>>`
+note: required by a bound in `std::iter::Iterator::collect`
+   --> /rustc/129f3b9964af4d4a709d1383930ade12dfe7c081/library/core/src/iter/traits/iterator.rs:2000:5
+help: consider introducing a `where` clause, but there might be an alternative better way to express this requirement
+    |
+103 | impl<E: Engine> R1CSShape<E> where Vec<<E as traits::Engine>::Scalar>: FromIterator<&<E as traits::Engine>::Scalar> {
+    |                              ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+error[E0277]: a value of type `Vec<<E as traits::Engine>::Scalar>` cannot be built from an iterator over elements of type `&<E as traits::Engine>::Scalar`
+   --> src/r1cs/mod.rs:338:37
+    |
+338 |       W2.W.iter().flatten().clone().collect(),
+    |                                     ^^^^^^^ value of type `Vec<<E as traits::Engine>::Scalar>` cannot be built from `std::iter::Iterator<Item=&<E as traits::Engine>::Scalar>`
+    |
+    = help: the trait `FromIterator<&<E as traits::Engine>::Scalar>` is not implemented for `Vec<<E as traits::Engine>::Scalar>`
+note: the method call chain might not have had the expected associated types
+   --> src/r1cs/mod.rs:338:12
+    |
+338 |       W2.W.iter().flatten().clone().collect(),
+    |       ---- ^^^^^^           ------- `Iterator::Item` is `&<E as Engine>::Scalar` here
+    |       |    |
+    |       |    `Iterator::Item` is `&Vec<<E as Engine>::Scalar>` here
+    |       this expression has type `Vec<Vec<<E as Engine>::Scalar>>`
+note: required by a bound in `std::iter::Iterator::collect`
+   --> /rustc/129f3b9964af4d4a709d1383930ade12dfe7c081/library/core/src/iter/traits/iterator.rs:2000:5
+help: consider introducing a `where` clause, but there might be an alternative better way to express this requirement
+    |
+103 | impl<E: Engine> R1CSShape<E> where Vec<<E as traits::Engine>::Scalar>: FromIterator<&<E as traits::Engine>::Scalar> {
+    |                              ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+error[E0308]: mismatched types
+   --> src/r1cs/mod.rs:387:19
+    |
+387 |         num_vars: m,
+    |                   ^ expected `Vec<usize>`, found `usize`
+    |
+    = note: expected struct `Vec<usize>`
+                 found type `usize`
+
+error[E0308]: mismatched types
+   --> src/r1cs/mod.rs:423:17
+    |
+423 |       num_vars: num_vars_padded,
+    |                 ^^^^^^^^^^^^^^^ expected `Vec<usize>`, found `usize`
+    |
+    = note: expected struct `Vec<usize>`
+                 found type `usize`
+
+error[E0308]: mismatched types
+   --> src/r1cs/mod.rs:439:28
+    |
+439 |     for sub_num_vars in 0..self.num_vars {
+    |                            ^^^^^^^^^^^^^ expected integer, found `Vec<usize>`
+    |
+    = note: expected type `{integer}`
+             found struct `Vec<usize>`
+
+error[E0277]: `{integer}` is not an iterator
+   --> src/r1cs/mod.rs:441:17
+    |
+441 |       for _i in sub_num_vars {
+    |                 ^^^^^^^^^^^^ `{integer}` is not an iterator
+    |
+    = help: the trait `Iterator` is not implemented for `{integer}`, which is required by `{integer}: IntoIterator`
+    = note: if you want to iterate between `start` until a value `end`, use the exclusive range syntax `start..end` or the inclusive range syntax `start..=end`
+    = note: required for `{integer}` to implement `IntoIterator`
+
+error[E0599]: no method named `iter` found for struct `std::ops::Range` in the current scope
+   --> src/r1cs/mod.rs:455:8
+    |
+454 |       let r_W = (0..self.num_vars.len())
+    |  _______________-
+455 | |       .iter()
+    | |_______-^^^^
+    |
+help: there is a method `filter` with a similar name, but with different arguments
+   --> /rustc/129f3b9964af4d4a709d1383930ade12dfe7c081/library/core/src/iter/traits/iterator.rs:884:5
+
+error[E0277]: can't compare `Vec<usize>` with `usize`
+   --> src/r1cs/mod.rs:496:19
+    |
+496 |     if S.num_vars != W.len() {
+    |                   ^^ no implementation for `Vec<usize> == usize`
+    |
+    = help: the trait `PartialEq<usize>` is not implemented for `Vec<usize>`
+    = help: the following other types implement trait `PartialEq<Rhs>`:
+              <Vec<T, A1> as PartialEq<Vec<U, A2>>>
+              <Vec<T, A> as PartialEq<&[U; N]>>
+              <Vec<T, A> as PartialEq<&[U]>>
+              <Vec<T, A> as PartialEq<&mut [U]>>
+              <Vec<T, A> as PartialEq<[U; N]>>
+              <Vec<T, A> as PartialEq<[U]>>
+
+error[E0277]: a value of type `Vec<Vec<<E as traits::Engine>::Scalar>>` cannot be built from an iterator over elements of type `&[<E as traits::Engine>::Scalar]`
+   --> src/r1cs/mod.rs:500:43
+    |
+500 |         W: W.iter().map(|w| w.to_owned()).collect(),
+    |                                           ^^^^^^^ value of type `Vec<Vec<<E as traits::Engine>::Scalar>>` cannot be built from `std::iter::Iterator<Item=&[<E as traits::Engine>::Scalar]>`
+    |
+    = help: the trait `FromIterator<&[<E as traits::Engine>::Scalar]>` is not implemented for `Vec<Vec<<E as traits::Engine>::Scalar>>`
+    = help: the trait `FromIterator<Vec<<E as traits::Engine>::Scalar>>` is implemented for `Vec<Vec<<E as traits::Engine>::Scalar>>`
+    = help: for that trait implementation, expected `Vec<<E as traits::Engine>::Scalar>`, found `&[<E as traits::Engine>::Scalar]`
+note: the method call chain might not have had the expected associated types
+   --> src/r1cs/mod.rs:500:21
+    |
+500 |         W: W.iter().map(|w| w.to_owned()).collect(),
+    |            - ------ ^^^^^^^^^^^^^^^^^^^^^ `Iterator::Item` changed to `&[<E as Engine>::Scalar]` here
+    |            | |
+    |            | `Iterator::Item` is `&&[<E as Engine>::Scalar]` here
+    |            this expression has type `Vec<&[<E as Engine>::Scalar]>`
+note: required by a bound in `std::iter::Iterator::collect`
+   --> /rustc/129f3b9964af4d4a709d1383930ade12dfe7c081/library/core/src/iter/traits/iterator.rs:2000:5
+
+error[E0599]: no method named `iter` found for struct `std::ops::Range` in the current scope
+   --> src/r1cs/mod.rs:502:12
+    |
+501 |           r_W: (0..W.len())
+    |  ______________-
+502 | |           .iter()
+    | |___________-^^^^
+    |
+help: there is a method `filter` with a similar name, but with different arguments
+   --> /rustc/129f3b9964af4d4a709d1383930ade12dfe7c081/library/core/src/iter/traits/iterator.rs:884:5
+
+error[E0593]: closure is expected to take a single 2-tuple as argument, but it takes 2 distinct arguments
+   --> src/r1cs/mod.rs:515:8
+    |
+515 |       .map(|w_vec, blind| CE::<E>::commit(ck, w_vec, blind))
+    |        ^^^ -------------- takes 2 distinct arguments
+    |        |
+    |        expected closure that takes a single 2-tuple as argument
+    |
+help: change the closure to accept a tuple instead of individual arguments
+    |
+515 |       .map(|(w_vec, blind)| CE::<E>::commit(ck, w_vec, blind))
+    |            ~~~~~~~~~~~~~~~~
+
+error[E0308]: mismatched types
+   --> src/r1cs/mod.rs:557:12
+    |
+557 |       r_W: E::Scalar::ZERO,
+    |            ^^^^^^^^^^^^^^^ expected `Vec<<E as Engine>::Scalar>`, found associated type
+    |
+    = note:       expected struct `Vec<<E as traits::Engine>::Scalar>`
+            found associated type `<E as traits::Engine>::Scalar`
+help: consider constraining the associated type `<E as traits::Engine>::Scalar` to `Vec<<E as traits::Engine>::Scalar>`
+    |
+547 | impl<E: Engine<Scalar = Vec<<E as traits::Engine>::Scalar>>> RelaxedR1CSWitness<E> {
+    |               +++++++++++++++++++++++++++++++++++++++++++++
+
+error[E0593]: closure is expected to take a single 2-tuple as argument, but it takes 2 distinct arguments
+   --> src/r1cs/mod.rs:580:10
+    |
+580 |         .map(|w_vec, blind| CE::<E>::commit(ck, w_vec, blind))
+    |          ^^^ -------------- takes 2 distinct arguments
+    |          |
+    |          expected closure that takes a single 2-tuple as argument
+    |
+help: change the closure to accept a tuple instead of individual arguments
+    |
+580 |         .map(|(w_vec, blind)| CE::<E>::commit(ck, w_vec, blind))
+    |              ~~~~~~~~~~~~~~~~
+
+error[E0277]: the trait bound `<E as traits::Engine>::Scalar: FromParallelIterator<<E as traits::Engine>::Scalar>` is not satisfied
+    --> src/r1cs/mod.rs:611:12
+     |
+611  |           .collect()
+     |            ^^^^^^^ the trait `FromParallelIterator<<E as traits::Engine>::Scalar>` is not implemented for `<E as traits::Engine>::Scalar`
+     |
+note: required by a bound in `rayon::iter::ParallelIterator::collect`
+    --> /Users/jesskwoods/.cargo/registry/src/index.crates.io-6f17d22bba15001f/rayon-1.10.0/src/iter/mod.rs:2067:12
+     |
+2065 |     fn collect<C>(self) -> C
+     |        ------- required by a bound in this associated function
+2066 |     where
+2067 |         C: FromParallelIterator<Self::Item>,
+     |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `ParallelIterator::collect`
+help: consider further restricting the associated type
+     |
+593  |   ) -> Result<RelaxedR1CSWitness<E>, NovaError> where <E as traits::Engine>::Scalar: FromParallelIterator<<E as traits::Engine>::Scalar> {
+     |                                                 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+error[E0308]: mismatched types
+   --> src/r1cs/mod.rs:631:29
+    |
+631 |     Ok(RelaxedR1CSWitness { W, r_W, E, r_E })
+    |                             ^ expected `Vec<Vec<<E as Engine>::Scalar>>`, found `Vec<<E as Engine>::Scalar>`
+    |
+    = note: expected struct `Vec<Vec<<E as traits::Engine>::Scalar>>`
+               found struct `Vec<<E as traits::Engine>::Scalar>`
+help: consider constraining the associated type `<E as traits::Engine>::Scalar` to `Vec<<E as traits::Engine>::Scalar>`
+    |
+547 | impl<E: Engine<Scalar = Vec<<E as traits::Engine>::Scalar>>> RelaxedR1CSWitness<E> {
+    |               +++++++++++++++++++++++++++++++++++++++++++++
+
+error[E0277]: the trait bound `<E as traits::Engine>::Scalar: FromParallelIterator<<E as traits::Engine>::Scalar>` is not satisfied
+    --> src/r1cs/mod.rs:660:12
+     |
+660  |           .collect()
+     |            ^^^^^^^ the trait `FromParallelIterator<<E as traits::Engine>::Scalar>` is not implemented for `<E as traits::Engine>::Scalar`
+     |
+note: required by a bound in `rayon::iter::ParallelIterator::collect`
+    --> /Users/jesskwoods/.cargo/registry/src/index.crates.io-6f17d22bba15001f/rayon-1.10.0/src/iter/mod.rs:2067:12
+     |
+2065 |     fn collect<C>(self) -> C
+     |        ------- required by a bound in this associated function
+2066 |     where
+2067 |         C: FromParallelIterator<Self::Item>,
+     |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `ParallelIterator::collect`
+help: consider further restricting the associated type
+     |
+642  |   ) -> Result<RelaxedR1CSWitness<E>, NovaError> where <E as traits::Engine>::Scalar: FromParallelIterator<<E as traits::Engine>::Scalar> {
+     |                                                 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+error[E0308]: mismatched types
+   --> src/r1cs/mod.rs:681:29
+    |
+681 |     Ok(RelaxedR1CSWitness { W, r_W, E, r_E })
+    |                             ^ expected `Vec<Vec<<E as Engine>::Scalar>>`, found `Vec<<E as Engine>::Scalar>`
+    |
+    = note: expected struct `Vec<Vec<<E as traits::Engine>::Scalar>>`
+               found struct `Vec<<E as traits::Engine>::Scalar>`
+help: consider constraining the associated type `<E as traits::Engine>::Scalar` to `Vec<<E as traits::Engine>::Scalar>`
+    |
+547 | impl<E: Engine<Scalar = Vec<<E as traits::Engine>::Scalar>>> RelaxedR1CSWitness<E> {
+    |               +++++++++++++++++++++++++++++++++++++++++++++
+
+error[E0369]: cannot subtract `_` from `Vec<usize>`
+   --> src/r1cs/mod.rs:690:20
+    |
+690 |         S.num_vars - W.iter().map(|w| w.len()).sum()
+    |         ---------- ^ ------------------------------- _
+    |         |
+    |         Vec<usize>
+
+error[E0614]: type `()` cannot be dereferenced
+   --> src/r1cs/mod.rs:688:7
+    |
+688 | /       *last.extend(vec![
+689 | |         E::Scalar::ZERO;
+690 | |         S.num_vars - W.iter().map(|w| w.len()).sum()
+691 | |       ]);
+    | |________^
+
+error[E0308]: mismatched types
+   --> src/r1cs/mod.rs:709:14
+    |
+709 |         r_W: E::Scalar::ZERO,
+    |              ^^^^^^^^^^^^^^^ expected `Vec<<E as Engine>::Scalar>`, found associated type
+    |
+    = note:       expected struct `Vec<<E as traits::Engine>::Scalar>`
+            found associated type `<E as traits::Engine>::Scalar`
+help: consider constraining the associated type `<E as traits::Engine>::Scalar` to `Vec<<E as traits::Engine>::Scalar>`
+    |
+547 | impl<E: Engine<Scalar = Vec<<E as traits::Engine>::Scalar>>> RelaxedR1CSWitness<E> {
+    |               +++++++++++++++++++++++++++++++++++++++++++++
+
+error[E0308]: mismatched types
+   --> src/r1cs/mod.rs:781:31
+    |
+781 |       .map(|(a, b)| *a + *b + *r)
+    |                               ^^ expected `CommitmentEngineTrait::Commitment`, found `traits::Engine::Scalar`
+    |
+    = note: expected associated type `<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment`
+               found associated type `<E as traits::Engine>::Scalar`
+    = note: an associated type was expected, but a different one was found
+
+error[E0308]: mismatched types
+   --> src/r1cs/mod.rs:814:31
+    |
+814 |       .map(|(a, b)| *a + *b + *r)
+    |                               ^^ expected `CommitmentEngineTrait::Commitment`, found `traits::Engine::Scalar`
+    |
+    = note: expected associated type `<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment`
+               found associated type `<E as traits::Engine>::Scalar`
+    = note: an associated type was expected, but a different one was found
+
+error[E0593]: closure is expected to take a single 2-tuple as argument, but it takes 2 distinct arguments
+   --> src/r1cs/mod.rs:838:10
+    |
+838 |         .map(|cmt, blind| CE::<E>::derandomize(dk, cmt, blind))
+    |          ^^^ ------------ takes 2 distinct arguments
+    |          |
+    |          expected closure that takes a single 2-tuple as argument
+    |
+help: change the closure to accept a tuple instead of individual arguments
+    |
+838 |         .map(|(cmt, blind)| CE::<E>::derandomize(dk, cmt, blind))
+    |              ~~~~~~~~~~~~~~
+
+error[E0599]: no method named `to_transcript_bytes` found for struct `Vec<<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment>` in the current scope
+   --> src/r1cs/mod.rs:850:19
+    |
+850 |       self.comm_W.to_transcript_bytes(),
+    |                   ^^^^^^^^^^^^^^^^^^^ method not found in `Vec<<<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment>`
+    |
+    = help: items from traits can only be used if the trait is implemented and in scope
+note: `TranscriptReprTrait` defines an item `to_transcript_bytes`, perhaps you need to implement it
+   --> src/traits/mod.rs:112:1
+    |
+112 | pub trait TranscriptReprTrait<G: Group>: Send + Sync {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no method named `absorb_in_ro` found for struct `Vec<<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment>` in the current scope
+   --> src/r1cs/mod.rs:861:17
+    |
+861 |     self.comm_W.absorb_in_ro(ro);
+    |                 ^^^^^^^^^^^^ method not found in `Vec<<<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment>`
+    |
+    = help: items from traits can only be used if the trait is implemented and in scope
+note: `AbsorbInROTrait` defines an item `absorb_in_ro`, perhaps you need to implement it
+   --> src/traits/mod.rs:58:1
+    |
+58  | pub trait AbsorbInROTrait<E: Engine> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no method named `to_coordinates` found for struct `Vec<<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment>` in the current scope
+  --> src/gadgets/r1cs.rs:38:26
+   |
+38 |       u.map(|u| u.comm_W.to_coordinates()),
+   |                          ^^^^^^^^^^^^^^ method not found in `Vec<<<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment>`
+   |
+   = help: items from traits can only be used if the trait is implemented and in scope
+   = note: the following traits define an item `to_coordinates`, perhaps you need to implement one of them:
+           candidate #1: `CommitmentTrait`
+           candidate #2: `DlogGroup`
+
+error[E0599]: no method named `to_coordinates` found for struct `Vec<<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment>` in the current scope
+  --> src/gadgets/r1cs.rs:80:35
+   |
+80 |       inst.map(|inst| inst.comm_W.to_coordinates()),
+   |                                   ^^^^^^^^^^^^^^ method not found in `Vec<<<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment>`
+   |
+   = help: items from traits can only be used if the trait is implemented and in scope
+   = note: the following traits define an item `to_coordinates`, perhaps you need to implement one of them:
+           candidate #1: `CommitmentTrait`
+           candidate #2: `DlogGroup`
+
+error[E0308]: mismatched types
+   --> src/spartan/direct.rs:162:15
+    |
+162 |       comm_W: u.comm_W,
+    |               ^^^^^^^^ expected associated type, found `Vec<<... as CommitmentEngineTrait<...>>::Commitment>`
+    |
+    = note: expected associated type `<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment`
+                        found struct `Vec<<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment>`
+
+error[E0308]: mismatched types
+   --> src/spartan/direct.rs:163:18
+    |
+163 |       blind_r_W: w_relaxed.r_W,
+    |                  ^^^^^^^^^^^^^ expected associated type, found `Vec<<E as Engine>::Scalar>`
+    |
+    = note: expected associated type `<E as traits::Engine>::Scalar`
+                        found struct `Vec<<E as traits::Engine>::Scalar>`
+
+error[E0308]: mismatched types
+   --> src/spartan/direct.rs:175:71
+    |
+175 |     let u_relaxed = RelaxedR1CSInstance::from_r1cs_instance_unchecked(&comm_W, io);
+    |                     ------------------------------------------------- ^^^^^^^ expected `&Vec<_>`, found `&<... as CommitmentEngineTrait<...>>::Commitment`
+    |                     |
+    |                     arguments to this function are incorrect
+    |
+    = note: expected reference `&Vec<_>`
+               found reference `&<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment`
+    = help: consider constraining the associated type `<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment` to `Vec<_>`
+    = note: for more information, visit https://doc.rust-lang.org/book/ch19-03-advanced-traits.html
+note: associated function defined here
+   --> src/r1cs/mod.rs:749:10
+    |
+749 |   pub fn from_r1cs_instance_unchecked(
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+750 |     comm_W: &Vec<Commitment<E>>,
+    |     ---------------------------
+
+error[E0277]: cannot multiply `{integer}` by `Vec<usize>`
+   --> src/spartan/ppsnark.rs:105:27
+    |
+105 |       max(total_nz, max(2 * S.num_vars, S.num_cons)).next_power_of_two()
+    |                           ^ no implementation for `{integer} * Vec<usize>`
+    |
+    = help: the trait `Mul<Vec<usize>>` is not implemented for `{integer}`
+    = help: the following other types implement trait `Mul<Rhs>`:
+              <&'a f128 as Mul<f128>>
+              <&'a f16 as Mul<f16>>
+              <&'a f32 as Mul<f32>>
+              <&'a f64 as Mul<f64>>
+              <&'a i128 as Mul<i128>>
+              <&'a i16 as Mul<i16>>
+              <&'a i32 as Mul<i32>>
+              <&'a i64 as Mul<i64>>
+            and 133 others
+
+error[E0308]: mismatched types
+    --> src/spartan/ppsnark.rs:1085:43
+     |
+1085 |     let vk = VerifierKey::new(S.num_cons, S.num_vars, S_comm.clone(), vk_ee);
+     |              ----------------             ^^^^^^^^^^ expected `usize`, found `Vec<usize>`
+     |              |
+     |              arguments to this function are incorrect
+     |
+     = note: expected type `usize`
+              found struct `Vec<usize>`
+note: associated function defined here
+    --> src/spartan/ppsnark.rs:1029:6
+     |
+1029 |   fn new(
+     |      ^^^
+1030 |     num_cons: usize,
+1031 |     num_vars: usize,
+     |     ---------------
+
+error[E0308]: mismatched types
+    --> src/spartan/ppsnark.rs:1118:32
+     |
+1118 |     let z = [W.W.clone(), vec![U.u], U.X.clone()].concat();
+     |                                ^^^ expected `Vec<<E as Engine>::Scalar>`, found associated type
+     |
+     = note:       expected struct `Vec<<E as traits::Engine>::Scalar>`
+             found associated type `<E as traits::Engine>::Scalar`
+help: consider constraining the associated type `<E as traits::Engine>::Scalar` to `Vec<<E as traits::Engine>::Scalar>`
+     |
+1058 | impl<E: Engine<Scalar = Vec<<E as traits::Engine>::Scalar>>, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK<E, EE> {
+     |               +++++++++++++++++++++++++++++++++++++++++++++
+
+error[E0308]: mismatched types
+    --> src/spartan/ppsnark.rs:1118:38
+     |
+1118 |     let z = [W.W.clone(), vec![U.u], U.X.clone()].concat();
+     |                                      ^^^^^^^^^^^ expected `Vec<Vec<<E as Engine>::Scalar>>`, found `Vec<<E as Engine>::Scalar>`
+     |
+     = note: expected struct `Vec<Vec<<E as traits::Engine>::Scalar>>`
+                found struct `Vec<<E as traits::Engine>::Scalar>`
+help: consider constraining the associated type `<E as traits::Engine>::Scalar` to `Vec<<E as traits::Engine>::Scalar>`
+     |
+1058 | impl<E: Engine<Scalar = Vec<<E as traits::Engine>::Scalar>>, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK<E, EE> {
+     |               +++++++++++++++++++++++++++++++++++++++++++++
+
+error[E0308]: mismatched types
+    --> src/spartan/ppsnark.rs:1147:27
+     |
+1147 |       let W = padded::<E>(&W.W, pk.S_repr.N, &E::Scalar::ZERO);
+     |               ----------- ^^^^ expected `&[<E as Engine>::Scalar]`, found `&Vec<Vec<<E as Engine>::Scalar>>`
+     |               |
+     |               arguments to this function are incorrect
+     |
+     = note: expected reference `&[<E as traits::Engine>::Scalar]`
+                found reference `&Vec<Vec<<E as traits::Engine>::Scalar>>`
+note: function defined here
+    --> src/spartan/ppsnark.rs:40:4
+     |
+40   | fn padded<E: Engine>(v: &[E::Scalar], n: usize, e: &E::Scalar) -> Vec<E::Scalar> {
+     |    ^^^^^^            ---------------
+
+error[E0308]: mismatched types
+    --> src/spartan/ppsnark.rs:1262:73
+     |
+1262 |     let mut witness_sc_inst = WitnessBoundSumcheck::new(tau, W.clone(), S.num_vars);
+     |                               -------------------------                 ^^^^^^^^^^ expected `usize`, found `Vec<usize>`
+     |                               |
+     |                               arguments to this function are incorrect
+     |
+     = note: expected type `usize`
+              found struct `Vec<usize>`
+note: associated function defined here
+    --> src/spartan/ppsnark.rs:260:6
+     |
+260  |   fn new(tau: E::Scalar, poly_W_padded: Vec<E::Scalar>, num_vars: usize) -> Self {
+     |      ^^^                                                ---------------
+
+error[E0308]: mismatched types
+    --> src/spartan/ppsnark.rs:1331:7
+     |
+1331 |       comm_Az,
+     |       ^^^^^^^ expected `Vec<<... as CommitmentEngineTrait<...>>::Commitment>`, found associated type
+     |
+     = note:       expected struct `Vec<<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment>`
+             found associated type `<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment`
+     = help: consider constraining the associated type `<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment` to `Vec<<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment>`
+     = note: for more information, visit https://doc.rust-lang.org/book/ch19-03-advanced-traits.html
+
+error[E0308]: mismatched types
+    --> src/spartan/ppsnark.rs:1608:7
+     |
+1608 |       self.comm_Az,
+     |       ^^^^^^^^^^^^ expected `Vec<<... as CommitmentEngineTrait<...>>::Commitment>`, found associated type
+     |
+     = note:       expected struct `Vec<<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment>`
+             found associated type `<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment`
+     = help: consider constraining the associated type `<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment` to `Vec<<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment>`
+     = note: for more information, visit https://doc.rust-lang.org/book/ch19-03-advanced-traits.html
+
+error[E0308]: mismatched types
+   --> src/spartan/snark.rs:137:36
+    |
+137 |     let mut z = [W.W.clone(), vec![U.u], U.X.clone()].concat();
+    |                                    ^^^ expected `Vec<<E as Engine>::Scalar>`, found associated type
+    |
+    = note:       expected struct `Vec<<E as traits::Engine>::Scalar>`
+            found associated type `<E as traits::Engine>::Scalar`
+help: consider constraining the associated type `<E as traits::Engine>::Scalar` to `Vec<<E as traits::Engine>::Scalar>`
+    |
+94  | impl<E: Engine<Scalar = Vec<<E as traits::Engine>::Scalar>>, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK<E, EE> {
+    |               +++++++++++++++++++++++++++++++++++++++++++++
+
+error[E0308]: mismatched types
+   --> src/spartan/snark.rs:137:42
+    |
+137 |     let mut z = [W.W.clone(), vec![U.u], U.X.clone()].concat();
+    |                                          ^^^^^^^^^^^ expected `Vec<Vec<<E as Engine>::Scalar>>`, found `Vec<<E as Engine>::Scalar>`
+    |
+    = note: expected struct `Vec<Vec<<E as traits::Engine>::Scalar>>`
+               found struct `Vec<<E as traits::Engine>::Scalar>`
+help: consider constraining the associated type `<E as traits::Engine>::Scalar` to `Vec<<E as traits::Engine>::Scalar>`
+    |
+94  | impl<E: Engine<Scalar = Vec<<E as traits::Engine>::Scalar>>, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK<E, EE> {
+    |               +++++++++++++++++++++++++++++++++++++++++++++
+
+error[E0599]: no method named `ilog2` found for struct `Vec<usize>` in the current scope
+   --> src/spartan/snark.rs:141:35
+    |
+141 |       (usize::try_from(S.num_vars.ilog2()).unwrap() + 1),
+    |                                   ^^^^^ method not found in `Vec<usize>`
+
+error[E0369]: cannot multiply `Vec<usize>` by `{integer}`
+   --> src/spartan/snark.rs:208:27
+    |
+208 |       z.resize(S.num_vars * 2, E::Scalar::ZERO);
+    |                ---------- ^ - {integer}
+    |                |
+    |                Vec<usize>
+
+error[E0277]: the trait bound `Vec<<E as traits::Engine>::Scalar>: PrimeField` is not satisfied
+   --> src/spartan/snark.rs:232:18
+    |
+232 |     let eval_W = MultilinearPolynomial::evaluate_with(&W.W, &r_y[1..]);
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `PrimeField` is not implemented for `Vec<<E as traits::Engine>::Scalar>`
+    |
+    = help: the following other types implement trait `PrimeField`:
+              Fq2
+              halo2curves::bn256::Fq
+              halo2curves::bn256::Fr
+              halo2curves::pluto_eris::Fp
+              halo2curves::pluto_eris::Fq
+              halo2curves::secp256k1::Fp
+              halo2curves::secp256k1::Fq
+              halo2curves::secp256r1::Fp
+            and 4 others
+note: required by a bound in `MultilinearPolynomial::<Scalar>::evaluate_with`
+   --> src/spartan/polys/multilinear.rs:39:14
+    |
+39  | impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
+    |              ^^^^^^^^^^ required by this bound in `MultilinearPolynomial::<Scalar>::evaluate_with`
+...
+110 |   pub fn evaluate_with(Z: &[Scalar], r: &[Scalar]) -> Scalar {
+    |          ------------- required by a bound in this associated function
+
+error[E0308]: mismatched types
+   --> src/spartan/snark.rs:266:7
+    |
+266 |       eval_W,
+    |       ^^^^^^ expected associated type, found `Vec<<E as Engine>::Scalar>`
+    |
+    = note: expected associated type `<E as traits::Engine>::Scalar`
+                        found struct `Vec<<E as traits::Engine>::Scalar>`
+
+error[E0271]: type mismatch resolving `<E as Engine>::Scalar == Vec<<E as Engine>::Scalar>`
+   --> src/spartan/snark.rs:215:48
+    |
+215 |       let (sc_proof_inner, r_y, _claims_inner) = SumcheckProof::prove_quad(
+    |  ________________________________________________^
+216 | |       &claim_inner_joint,
+217 | |       num_rounds_y,
+218 | |       &mut MultilinearPolynomial::new(poly_ABC),
+...   |
+221 | |       &mut transcript,
+222 | |     )?;
+    | |_____^ expected associated type, found `Vec<<E as Engine>::Scalar>`
+    |
+    = note: expected associated type `<E as traits::Engine>::Scalar`
+                        found struct `Vec<<E as traits::Engine>::Scalar>`
+
+error[E0271]: type mismatch resolving `<E as Engine>::Scalar == Vec<<E as Engine>::Scalar>`
+   --> src/spartan/snark.rs:234:40
+    |
+234 |     let w_vec = vec![PolyEvalWitness { p: W.W }, PolyEvalWitness { p: W.E }];
+    |                                        ^^^^^^ expected associated type, found `Vec<<E as Engine>::Scalar>`
+    |
+    = note: expected associated type `<E as traits::Engine>::Scalar`
+                        found struct `Vec<<E as traits::Engine>::Scalar>`
+
+error[E0271]: type mismatch resolving `<<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment == Vec<<<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment>`
+   --> src/spartan/snark.rs:237:9
+    |
+237 |         c: U.comm_W,
+    |         ^^^^^^^^^^^ expected associated type, found `Vec<<... as CommitmentEngineTrait<...>>::Commitment>`
+    |
+    = note: expected associated type `<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment`
+                        found struct `Vec<<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment>`
+
+error[E0271]: type mismatch resolving `<E as Engine>::Scalar == Vec<<E as Engine>::Scalar>`
+   --> src/spartan/snark.rs:238:9
+    |
+238 |         x: r_y[1..].to_vec(),
+    |         ^^^^^^^^^^^^^^^^^^^^ expected associated type, found `Vec<<E as Engine>::Scalar>`
+    |
+    = note: expected associated type `<E as traits::Engine>::Scalar`
+                        found struct `Vec<<E as traits::Engine>::Scalar>`
+
+error[E0271]: type mismatch resolving `<E as Engine>::Scalar == Vec<<E as Engine>::Scalar>`
+   --> src/spartan/snark.rs:239:9
+    |
+239 |         e: eval_W,
+    |         ^^^^^^^^^ expected associated type, found `Vec<<E as Engine>::Scalar>`
+    |
+    = note: expected associated type `<E as traits::Engine>::Scalar`
+                        found struct `Vec<<E as traits::Engine>::Scalar>`
+
+error[E0599]: no method named `ilog2` found for struct `Vec<usize>` in the current scope
+   --> src/spartan/snark.rs:283:38
+    |
+283 |       (usize::try_from(vk.S.num_vars.ilog2()).unwrap() + 1),
+    |                                      ^^^^^ method not found in `Vec<usize>`
+
+error[E0599]: no method named `log_2` found for struct `Vec<usize>` in the current scope
+   --> src/spartan/snark.rs:334:45
+    |
+334 |         SparsePolynomial::new(vk.S.num_vars.log_2(), X).evaluate(&r_y[1..])
+    |                                             ^^^^^ method not found in `Vec<usize>`
+    |
+    = help: items from traits can only be used if the trait is implemented and in scope
+note: `Math` defines an item `log_2`, perhaps you need to implement it
+   --> src/spartan/math.rs:1:1
+    |
+1   | pub trait Math {
+    | ^^^^^^^^^^^^^^
+
+error[E0308]: mismatched types
+   --> src/spartan/snark.rs:378:12
+    |
+378 |         c: U.comm_W,
+    |            ^^^^^^^^ expected associated type, found `Vec<<... as CommitmentEngineTrait<...>>::Commitment>`
+    |
+    = note: expected associated type `<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment`
+                        found struct `Vec<<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment>`
+
+error[E0277]: cannot multiply `{integer}` by `Vec<usize>`
+   --> src/spartan/mod.rs:257:65
+    |
+257 |       let mut A_evals: Vec<E::Scalar> = vec![E::Scalar::ZERO; 2 * S.num_vars];
+    |                                                                 ^ no implementation for `{integer} * Vec<usize>`
+    |
+    = help: the trait `Mul<Vec<usize>>` is not implemented for `{integer}`
+    = help: the following other types implement trait `Mul<Rhs>`:
+              <&'a f128 as Mul<f128>>
+              <&'a f16 as Mul<f16>>
+              <&'a f32 as Mul<f32>>
+              <&'a f64 as Mul<f64>>
+              <&'a i128 as Mul<i128>>
+              <&'a i16 as Mul<i16>>
+              <&'a i32 as Mul<i32>>
+              <&'a i64 as Mul<i64>>
+            and 133 others
+
+error[E0277]: cannot multiply `{integer}` by `Vec<usize>`
+   --> src/spartan/mod.rs:264:69
+    |
+264 |           let mut B_evals: Vec<E::Scalar> = vec![E::Scalar::ZERO; 2 * S.num_vars];
+    |                                                                     ^ no implementation for `{integer} * Vec<usize>`
+    |
+    = help: the trait `Mul<Vec<usize>>` is not implemented for `{integer}`
+    = help: the following other types implement trait `Mul<Rhs>`:
+              <&'a f128 as Mul<f128>>
+              <&'a f16 as Mul<f16>>
+              <&'a f32 as Mul<f32>>
+              <&'a f64 as Mul<f64>>
+              <&'a i128 as Mul<i128>>
+              <&'a i16 as Mul<i16>>
+              <&'a i32 as Mul<i32>>
+              <&'a i64 as Mul<i64>>
+            and 133 others
+
+error[E0277]: cannot multiply `{integer}` by `Vec<usize>`
+   --> src/spartan/mod.rs:269:69
+    |
+269 |           let mut C_evals: Vec<E::Scalar> = vec![E::Scalar::ZERO; 2 * S.num_vars];
+    |                                                                     ^ no implementation for `{integer} * Vec<usize>`
+    |
+    = help: the trait `Mul<Vec<usize>>` is not implemented for `{integer}`
+    = help: the following other types implement trait `Mul<Rhs>`:
+              <&'a f128 as Mul<f128>>
+              <&'a f16 as Mul<f16>>
+              <&'a f32 as Mul<f32>>
+              <&'a f64 as Mul<f64>>
+              <&'a i128 as Mul<i128>>
+              <&'a i16 as Mul<i16>>
+              <&'a i32 as Mul<i32>>
+              <&'a i64 as Mul<i64>>
+            and 133 others
+
+error[E0308]: mismatched types
+   --> src/lib.rs:230:7
+    |
+230 |       self.r1cs_shape_primary.num_vars,
+    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `usize`, found `Vec<usize>`
+    |
+    = note: expected type `usize`
+             found struct `Vec<usize>`
+
+error[E0308]: mismatched types
+   --> src/lib.rs:231:7
+    |
+231 |       self.r1cs_shape_secondary.num_vars,
+    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `usize`, found `Vec<usize>`
+    |
+    = note: expected type `usize`
+             found struct `Vec<usize>`
+
+error[E0308]: mismatched types
+   --> src/lib.rs:844:7
+    |
+844 |       wit_blind_r_Wn_primary,
+    |       ^^^^^^^^^^^^^^^^^^^^^^ expected associated type, found `Vec<<E1 as Engine>::Scalar>`
+    |
+    = note: expected associated type `<E1 as traits::Engine>::Scalar`
+                        found struct `Vec<<E1 as traits::Engine>::Scalar>`
+
+error[E0308]: mismatched types
+   --> src/lib.rs:846:7
+    |
+846 |       wit_blind_r_Wn_secondary,
+    |       ^^^^^^^^^^^^^^^^^^^^^^^^ expected associated type, found `Vec<<E2 as Engine>::Scalar>`
+    |
+    = note: expected associated type `<E2 as traits::Engine>::Scalar`
+                        found struct `Vec<<E2 as traits::Engine>::Scalar>`
+
+error[E0308]: mismatched types
+   --> src/lib.rs:953:7
+    |
+951 |     let derandom_r_Un_primary = r_Un_primary.derandomize(
+    |                                              ----------- arguments to this method are incorrect
+952 |       &vk.dk_primary,
+953 |       &self.wit_blind_r_Wn_primary,
+    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `&Vec<<E1 as Engine>::Scalar>`, found `&<E1 as Engine>::Scalar`
+    |
+    = note: expected reference `&Vec<<E1 as traits::Engine>::Scalar>`
+               found reference `&<E1 as traits::Engine>::Scalar`
+note: method defined here
+   --> src/r1cs/mod.rs:827:10
+    |
+827 |   pub fn derandomize(
+    |          ^^^^^^^^^^^
+...
+830 |     r_W: &Vec<E::Scalar>,
+    |     --------------------
+help: consider constraining the associated type `<E1 as traits::Engine>::Scalar` to `Vec<<E1 as traits::Engine>::Scalar>`
+    |
+697 |   E1: Engine<Base = <E2 as Engine>::Scalar, Scalar = Vec<<E1 as traits::Engine>::Scalar>>,
+    |                                           ++++++++++++++++++++++++++++++++++++++++++++++
+
+error[E0308]: mismatched types
+   --> src/lib.rs:958:7
+    |
+956 |     let derandom_r_Un_secondary = r_Un_secondary.derandomize(
+    |                                                  ----------- arguments to this method are incorrect
+957 |       &vk.dk_secondary,
+958 |       &self.wit_blind_r_Wn_secondary,
+    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `&Vec<<E2 as Engine>::Scalar>`, found `&<E2 as Engine>::Scalar`
+    |
+    = note: expected reference `&Vec<<E2 as traits::Engine>::Scalar>`
+               found reference `&<E2 as traits::Engine>::Scalar`
+note: method defined here
+   --> src/r1cs/mod.rs:827:10
+    |
+827 |   pub fn derandomize(
+    |          ^^^^^^^^^^^
+...
+830 |     r_W: &Vec<E::Scalar>,
+    |     --------------------
+help: consider constraining the associated type `<E2 as traits::Engine>::Scalar` to `Vec<<E2 as traits::Engine>::Scalar>`
+    |
+698 |   E2: Engine<Base = <E1 as Engine>::Scalar, Scalar = Vec<<E2 as traits::Engine>::Scalar>>,
+    |                                           ++++++++++++++++++++++++++++++++++++++++++++++
+
+error: unused import: `math::Math`
+  --> src/spartan/snark.rs:13:5
+   |
+13 |     math::Math,
+   |     ^^^^^^^^^^
+   |
+note: the lint level is defined here
+  --> src/lib.rs:4:3
+   |
+4  |   unused,
+   |   ^^^^^^
+   = note: `#[deny(unused_imports)]` implied by `#[deny(unused)]`
+
+error[E0507]: cannot move out of `S.num_vars` which is behind a shared reference
+  --> src/r1cs/mod.rs:97:20
+   |
+97 |     let num_vars = S.num_vars;
+   |                    ^^^^^^^^^^ move occurs because `S.num_vars` has type `Vec<usize>`, which does not implement the `Copy` trait
+   |
+help: consider borrowing here
+   |
+97 |     let num_vars = &S.num_vars;
+   |                    +
+help: consider cloning the value if the performance cost is acceptable
+   |
+97 |     let num_vars = S.num_vars.clone();
+   |                              ++++++++
+
+error[E0507]: cannot move out of `*comm_W` which is behind a shared reference
+   --> src/r1cs/mod.rs:531:17
+    |
+531 |         comm_W: *comm_W,
+    |                 ^^^^^^^ move occurs because `*comm_W` has type `Vec<<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment>`, which does not implement the `Copy` trait
+    |
+help: consider cloning the value if the performance cost is acceptable
+    |
+531 -         comm_W: *comm_W,
+531 +         comm_W: comm_W.clone(),
+    |
+
+error[E0507]: cannot move out of `instance.comm_W` which is behind a shared reference
+   --> src/r1cs/mod.rs:741:25
+    |
+741 |     r_instance.comm_W = instance.comm_W;
+    |                         ^^^^^^^^^^^^^^^ move occurs because `instance.comm_W` has type `Vec<<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment>`, which does not implement the `Copy` trait
+    |
+help: consider cloning the value if the performance cost is acceptable
+    |
+741 |     r_instance.comm_W = instance.comm_W.clone();
+    |                                        ++++++++
+
+error[E0507]: cannot move out of `*comm_W` which is behind a shared reference
+   --> src/r1cs/mod.rs:754:15
+    |
+754 |       comm_W: *comm_W,
+    |               ^^^^^^^ move occurs because `*comm_W` has type `Vec<<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment>`, which does not implement the `Copy` trait
+    |
+help: consider cloning the value if the performance cost is acceptable
+    |
+754 -       comm_W: *comm_W,
+754 +       comm_W: comm_W.clone(),
+    |
+
+Some errors have detailed explanations: E0271, E0277, E0282, E0283, E0284, E0308, E0369, E0507, E0593...
+For more information about an error, try `rustc --explain E0271`.
+error: could not compile `nova-snark` (lib) due to 88 previous errors
