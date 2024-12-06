@@ -1,4 +1,36 @@
    Compiling nova-snark v0.37.0 (/Users/jesskwoods/Repos/nova)
+error: expected a pattern range bound, found a method call
+   --> src/r1cs/mod.rs:500:16
+    |
+500 |         for 0..W.len() {
+    |                ^^^^^^^ method calls are not allowed in patterns
+
+error: missing `in` in `for` loop
+   --> src/r1cs/mod.rs:500:23
+    |
+500 |         for 0..W.len() {
+    |                       ^ help: try adding `in` here
+
+error: missing expression to iterate on in `for` loop
+   --> src/r1cs/mod.rs:500:24
+    |
+500 |         for 0..W.len() {
+    |                        ^
+    |
+help: try adding an expression to the `for` loop
+    |
+500 |         for 0..W.len() /* expression */ {
+    |                        ++++++++++++++++
+
+error[E0658]: exclusive range pattern syntax is experimental
+   --> src/r1cs/mod.rs:500:13
+    |
+500 |         for 0..W.len() {
+    |             ^^^^^^^^^^
+    |
+    = note: see issue #37854 <https://github.com/rust-lang/rust/issues/37854> for more information
+    = help: use an inclusive range pattern, like N..=M
+
 error[E0308]: mismatched types
    --> src/bellpepper/r1cs.rs:39:42
     |
@@ -467,18 +499,18 @@ error[E0277]: can't compare `Vec<usize>` with `usize`
               <Vec<T, A> as PartialEq<[U]>>
 
 error[E0277]: a value of type `Vec<Vec<<E as traits::Engine>::Scalar>>` cannot be built from an iterator over elements of type `&[<E as traits::Engine>::Scalar]`
-   --> src/r1cs/mod.rs:500:43
+   --> src/r1cs/mod.rs:505:43
     |
-500 |         W: W.iter().map(|w| w.to_owned()).collect(),
+505 |         W: W.iter().map(|w| w.to_owned()).collect(),
     |                                           ^^^^^^^ value of type `Vec<Vec<<E as traits::Engine>::Scalar>>` cannot be built from `std::iter::Iterator<Item=&[<E as traits::Engine>::Scalar]>`
     |
     = help: the trait `FromIterator<&[<E as traits::Engine>::Scalar]>` is not implemented for `Vec<Vec<<E as traits::Engine>::Scalar>>`
     = help: the trait `FromIterator<Vec<<E as traits::Engine>::Scalar>>` is implemented for `Vec<Vec<<E as traits::Engine>::Scalar>>`
     = help: for that trait implementation, expected `Vec<<E as traits::Engine>::Scalar>`, found `&[<E as traits::Engine>::Scalar]`
 note: the method call chain might not have had the expected associated types
-   --> src/r1cs/mod.rs:500:21
+   --> src/r1cs/mod.rs:505:21
     |
-500 |         W: W.iter().map(|w| w.to_owned()).collect(),
+505 |         W: W.iter().map(|w| w.to_owned()).collect(),
     |            - ------ ^^^^^^^^^^^^^^^^^^^^^ `Iterator::Item` changed to `&[<E as Engine>::Scalar]` here
     |            | |
     |            | `Iterator::Item` is `&&[<E as Engine>::Scalar]` here
@@ -486,60 +518,23 @@ note: the method call chain might not have had the expected associated types
 note: required by a bound in `std::iter::Iterator::collect`
    --> /rustc/129f3b9964af4d4a709d1383930ade12dfe7c081/library/core/src/iter/traits/iterator.rs:2000:5
 
-error[E0599]: no method named `iter` found for struct `std::ops::Range` in the current scope
-   --> src/r1cs/mod.rs:502:12
-    |
-501 |           r_W: (0..W.len())
-    |  ______________-
-502 | |           .iter()
-    | |___________-^^^^
-    |
-help: there is a method `filter` with a similar name, but with different arguments
-   --> /rustc/129f3b9964af4d4a709d1383930ade12dfe7c081/library/core/src/iter/traits/iterator.rs:884:5
-
 error[E0593]: closure is expected to take a single 2-tuple as argument, but it takes 2 distinct arguments
-   --> src/r1cs/mod.rs:515:8
+   --> src/r1cs/mod.rs:582:10
     |
-515 |       .map(|w_vec, blind| CE::<E>::commit(ck, w_vec, blind))
-    |        ^^^ -------------- takes 2 distinct arguments
-    |        |
-    |        expected closure that takes a single 2-tuple as argument
-    |
-help: change the closure to accept a tuple instead of individual arguments
-    |
-515 |       .map(|(w_vec, blind)| CE::<E>::commit(ck, w_vec, blind))
-    |            ~~~~~~~~~~~~~~~~
-
-error[E0308]: mismatched types
-   --> src/r1cs/mod.rs:557:12
-    |
-557 |       r_W: E::Scalar::ZERO,
-    |            ^^^^^^^^^^^^^^^ expected `Vec<<E as Engine>::Scalar>`, found associated type
-    |
-    = note:       expected struct `Vec<<E as traits::Engine>::Scalar>`
-            found associated type `<E as traits::Engine>::Scalar`
-help: consider constraining the associated type `<E as traits::Engine>::Scalar` to `Vec<<E as traits::Engine>::Scalar>`
-    |
-547 | impl<E: Engine<Scalar = Vec<<E as traits::Engine>::Scalar>>> RelaxedR1CSWitness<E> {
-    |               +++++++++++++++++++++++++++++++++++++++++++++
-
-error[E0593]: closure is expected to take a single 2-tuple as argument, but it takes 2 distinct arguments
-   --> src/r1cs/mod.rs:580:10
-    |
-580 |         .map(|w_vec, blind| CE::<E>::commit(ck, w_vec, blind))
+582 |         .map(|w_vec, blind| CE::<E>::commit(ck, w_vec, blind))
     |          ^^^ -------------- takes 2 distinct arguments
     |          |
     |          expected closure that takes a single 2-tuple as argument
     |
 help: change the closure to accept a tuple instead of individual arguments
     |
-580 |         .map(|(w_vec, blind)| CE::<E>::commit(ck, w_vec, blind))
+582 |         .map(|(w_vec, blind)| CE::<E>::commit(ck, w_vec, blind))
     |              ~~~~~~~~~~~~~~~~
 
 error[E0277]: the trait bound `<E as traits::Engine>::Scalar: FromParallelIterator<<E as traits::Engine>::Scalar>` is not satisfied
-    --> src/r1cs/mod.rs:611:12
+    --> src/r1cs/mod.rs:613:12
      |
-611  |           .collect()
+613  |           .collect()
      |            ^^^^^^^ the trait `FromParallelIterator<<E as traits::Engine>::Scalar>` is not implemented for `<E as traits::Engine>::Scalar`
      |
 note: required by a bound in `rayon::iter::ParallelIterator::collect`
@@ -552,26 +547,26 @@ note: required by a bound in `rayon::iter::ParallelIterator::collect`
      |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `ParallelIterator::collect`
 help: consider further restricting the associated type
      |
-593  |   ) -> Result<RelaxedR1CSWitness<E>, NovaError> where <E as traits::Engine>::Scalar: FromParallelIterator<<E as traits::Engine>::Scalar> {
+595  |   ) -> Result<RelaxedR1CSWitness<E>, NovaError> where <E as traits::Engine>::Scalar: FromParallelIterator<<E as traits::Engine>::Scalar> {
      |                                                 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 error[E0308]: mismatched types
-   --> src/r1cs/mod.rs:631:29
+   --> src/r1cs/mod.rs:633:29
     |
-631 |     Ok(RelaxedR1CSWitness { W, r_W, E, r_E })
+633 |     Ok(RelaxedR1CSWitness { W, r_W, E, r_E })
     |                             ^ expected `Vec<Vec<<E as Engine>::Scalar>>`, found `Vec<<E as Engine>::Scalar>`
     |
     = note: expected struct `Vec<Vec<<E as traits::Engine>::Scalar>>`
                found struct `Vec<<E as traits::Engine>::Scalar>`
 help: consider constraining the associated type `<E as traits::Engine>::Scalar` to `Vec<<E as traits::Engine>::Scalar>`
     |
-547 | impl<E: Engine<Scalar = Vec<<E as traits::Engine>::Scalar>>> RelaxedR1CSWitness<E> {
+549 | impl<E: Engine<Scalar = Vec<<E as traits::Engine>::Scalar>>> RelaxedR1CSWitness<E> {
     |               +++++++++++++++++++++++++++++++++++++++++++++
 
 error[E0277]: the trait bound `<E as traits::Engine>::Scalar: FromParallelIterator<<E as traits::Engine>::Scalar>` is not satisfied
-    --> src/r1cs/mod.rs:660:12
+    --> src/r1cs/mod.rs:662:12
      |
-660  |           .collect()
+662  |           .collect()
      |            ^^^^^^^ the trait `FromParallelIterator<<E as traits::Engine>::Scalar>` is not implemented for `<E as traits::Engine>::Scalar`
      |
 note: required by a bound in `rayon::iter::ParallelIterator::collect`
@@ -584,56 +579,56 @@ note: required by a bound in `rayon::iter::ParallelIterator::collect`
      |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `ParallelIterator::collect`
 help: consider further restricting the associated type
      |
-642  |   ) -> Result<RelaxedR1CSWitness<E>, NovaError> where <E as traits::Engine>::Scalar: FromParallelIterator<<E as traits::Engine>::Scalar> {
+644  |   ) -> Result<RelaxedR1CSWitness<E>, NovaError> where <E as traits::Engine>::Scalar: FromParallelIterator<<E as traits::Engine>::Scalar> {
      |                                                 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 error[E0308]: mismatched types
-   --> src/r1cs/mod.rs:681:29
+   --> src/r1cs/mod.rs:683:29
     |
-681 |     Ok(RelaxedR1CSWitness { W, r_W, E, r_E })
+683 |     Ok(RelaxedR1CSWitness { W, r_W, E, r_E })
     |                             ^ expected `Vec<Vec<<E as Engine>::Scalar>>`, found `Vec<<E as Engine>::Scalar>`
     |
     = note: expected struct `Vec<Vec<<E as traits::Engine>::Scalar>>`
                found struct `Vec<<E as traits::Engine>::Scalar>`
 help: consider constraining the associated type `<E as traits::Engine>::Scalar` to `Vec<<E as traits::Engine>::Scalar>`
     |
-547 | impl<E: Engine<Scalar = Vec<<E as traits::Engine>::Scalar>>> RelaxedR1CSWitness<E> {
+549 | impl<E: Engine<Scalar = Vec<<E as traits::Engine>::Scalar>>> RelaxedR1CSWitness<E> {
     |               +++++++++++++++++++++++++++++++++++++++++++++
 
 error[E0369]: cannot subtract `_` from `Vec<usize>`
-   --> src/r1cs/mod.rs:690:20
+   --> src/r1cs/mod.rs:692:20
     |
-690 |         S.num_vars - W.iter().map(|w| w.len()).sum()
+692 |         S.num_vars - W.iter().map(|w| w.len()).sum()
     |         ---------- ^ ------------------------------- _
     |         |
     |         Vec<usize>
 
 error[E0614]: type `()` cannot be dereferenced
-   --> src/r1cs/mod.rs:688:7
+   --> src/r1cs/mod.rs:690:7
     |
-688 | /       *last.extend(vec![
-689 | |         E::Scalar::ZERO;
-690 | |         S.num_vars - W.iter().map(|w| w.len()).sum()
-691 | |       ]);
+690 | /       *last.extend(vec![
+691 | |         E::Scalar::ZERO;
+692 | |         S.num_vars - W.iter().map(|w| w.len()).sum()
+693 | |       ]);
     | |________^
 
 error[E0308]: mismatched types
-   --> src/r1cs/mod.rs:709:14
+   --> src/r1cs/mod.rs:711:14
     |
-709 |         r_W: E::Scalar::ZERO,
+711 |         r_W: E::Scalar::ZERO,
     |              ^^^^^^^^^^^^^^^ expected `Vec<<E as Engine>::Scalar>`, found associated type
     |
     = note:       expected struct `Vec<<E as traits::Engine>::Scalar>`
             found associated type `<E as traits::Engine>::Scalar`
 help: consider constraining the associated type `<E as traits::Engine>::Scalar` to `Vec<<E as traits::Engine>::Scalar>`
     |
-547 | impl<E: Engine<Scalar = Vec<<E as traits::Engine>::Scalar>>> RelaxedR1CSWitness<E> {
+549 | impl<E: Engine<Scalar = Vec<<E as traits::Engine>::Scalar>>> RelaxedR1CSWitness<E> {
     |               +++++++++++++++++++++++++++++++++++++++++++++
 
 error[E0308]: mismatched types
-   --> src/r1cs/mod.rs:781:31
+   --> src/r1cs/mod.rs:783:31
     |
-781 |       .map(|(a, b)| *a + *b + *r)
+783 |       .map(|(a, b)| *a + *b + *r)
     |                               ^^ expected `CommitmentEngineTrait::Commitment`, found `traits::Engine::Scalar`
     |
     = note: expected associated type `<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment`
@@ -641,9 +636,9 @@ error[E0308]: mismatched types
     = note: an associated type was expected, but a different one was found
 
 error[E0308]: mismatched types
-   --> src/r1cs/mod.rs:814:31
+   --> src/r1cs/mod.rs:816:31
     |
-814 |       .map(|(a, b)| *a + *b + *r)
+816 |       .map(|(a, b)| *a + *b + *r)
     |                               ^^ expected `CommitmentEngineTrait::Commitment`, found `traits::Engine::Scalar`
     |
     = note: expected associated type `<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment`
@@ -651,22 +646,22 @@ error[E0308]: mismatched types
     = note: an associated type was expected, but a different one was found
 
 error[E0593]: closure is expected to take a single 2-tuple as argument, but it takes 2 distinct arguments
-   --> src/r1cs/mod.rs:838:10
+   --> src/r1cs/mod.rs:840:10
     |
-838 |         .map(|cmt, blind| CE::<E>::derandomize(dk, cmt, blind))
+840 |         .map(|cmt, blind| CE::<E>::derandomize(dk, cmt, blind))
     |          ^^^ ------------ takes 2 distinct arguments
     |          |
     |          expected closure that takes a single 2-tuple as argument
     |
 help: change the closure to accept a tuple instead of individual arguments
     |
-838 |         .map(|(cmt, blind)| CE::<E>::derandomize(dk, cmt, blind))
+840 |         .map(|(cmt, blind)| CE::<E>::derandomize(dk, cmt, blind))
     |              ~~~~~~~~~~~~~~
 
 error[E0599]: no method named `to_transcript_bytes` found for struct `Vec<<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment>` in the current scope
-   --> src/r1cs/mod.rs:850:19
+   --> src/r1cs/mod.rs:852:19
     |
-850 |       self.comm_W.to_transcript_bytes(),
+852 |       self.comm_W.to_transcript_bytes(),
     |                   ^^^^^^^^^^^^^^^^^^^ method not found in `Vec<<<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment>`
     |
     = help: items from traits can only be used if the trait is implemented and in scope
@@ -677,9 +672,9 @@ note: `TranscriptReprTrait` defines an item `to_transcript_bytes`, perhaps you n
     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error[E0599]: no method named `absorb_in_ro` found for struct `Vec<<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment>` in the current scope
-   --> src/r1cs/mod.rs:861:17
+   --> src/r1cs/mod.rs:863:17
     |
-861 |     self.comm_W.absorb_in_ro(ro);
+863 |     self.comm_W.absorb_in_ro(ro);
     |                 ^^^^^^^^^^^^ method not found in `Vec<<<E as Engine>::CE as CommitmentEngineTrait<E>>::Commitment>`
     |
     = help: items from traits can only be used if the trait is implemented and in scope
@@ -733,21 +728,21 @@ error[E0308]: mismatched types
    --> src/spartan/direct.rs:175:71
     |
 175 |     let u_relaxed = RelaxedR1CSInstance::from_r1cs_instance_unchecked(&comm_W, io);
-    |                     ------------------------------------------------- ^^^^^^^ expected `&Vec<_>`, found `&<... as CommitmentEngineTrait<...>>::Commitment`
+    |                     ------------------------------------------------- ^^^^^^^ expected `&[_]`, found `&<... as CommitmentEngineTrait<...>>::Commitment`
     |                     |
     |                     arguments to this function are incorrect
     |
-    = note: expected reference `&Vec<_>`
+    = note: expected reference `&[_]`
                found reference `&<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment`
-    = help: consider constraining the associated type `<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment` to `Vec<_>`
+    = help: consider constraining the associated type `<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment` to `[_]`
     = note: for more information, visit https://doc.rust-lang.org/book/ch19-03-advanced-traits.html
 note: associated function defined here
-   --> src/r1cs/mod.rs:749:10
+   --> src/r1cs/mod.rs:751:10
     |
-749 |   pub fn from_r1cs_instance_unchecked(
+751 |   pub fn from_r1cs_instance_unchecked(
     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-750 |     comm_W: &Vec<Commitment<E>>,
-    |     ---------------------------
+752 |     comm_W: &[Commitment<E>],
+    |     ------------------------
 
 error[E0277]: cannot multiply `{integer}` by `Vec<usize>`
    --> src/spartan/ppsnark.rs:105:27
@@ -1122,12 +1117,12 @@ error[E0308]: mismatched types
     = note: expected reference `&Vec<<E1 as traits::Engine>::Scalar>`
                found reference `&<E1 as traits::Engine>::Scalar`
 note: method defined here
-   --> src/r1cs/mod.rs:827:10
+   --> src/r1cs/mod.rs:829:10
     |
-827 |   pub fn derandomize(
+829 |   pub fn derandomize(
     |          ^^^^^^^^^^^
 ...
-830 |     r_W: &Vec<E::Scalar>,
+832 |     r_W: &Vec<E::Scalar>,
     |     --------------------
 help: consider constraining the associated type `<E1 as traits::Engine>::Scalar` to `Vec<<E1 as traits::Engine>::Scalar>`
     |
@@ -1146,12 +1141,12 @@ error[E0308]: mismatched types
     = note: expected reference `&Vec<<E2 as traits::Engine>::Scalar>`
                found reference `&<E2 as traits::Engine>::Scalar`
 note: method defined here
-   --> src/r1cs/mod.rs:827:10
+   --> src/r1cs/mod.rs:829:10
     |
-827 |   pub fn derandomize(
+829 |   pub fn derandomize(
     |          ^^^^^^^^^^^
 ...
-830 |     r_W: &Vec<E::Scalar>,
+832 |     r_W: &Vec<E::Scalar>,
     |     --------------------
 help: consider constraining the associated type `<E2 as traits::Engine>::Scalar` to `Vec<<E2 as traits::Engine>::Scalar>`
     |
@@ -1172,55 +1167,25 @@ note: the lint level is defined here
    = note: `#[deny(unused_imports)]` implied by `#[deny(unused)]`
 
 error[E0507]: cannot move out of `S.num_vars` which is behind a shared reference
-  --> src/r1cs/mod.rs:97:20
-   |
-97 |     let num_vars = S.num_vars;
-   |                    ^^^^^^^^^^ move occurs because `S.num_vars` has type `Vec<usize>`, which does not implement the `Copy` trait
-   |
-help: consider borrowing here
-   |
-97 |     let num_vars = &S.num_vars;
-   |                    +
-help: consider cloning the value if the performance cost is acceptable
-   |
-97 |     let num_vars = S.num_vars.clone();
-   |                              ++++++++
-
-error[E0507]: cannot move out of `*comm_W` which is behind a shared reference
-   --> src/r1cs/mod.rs:531:17
+   --> src/r1cs/mod.rs:553:25
     |
-531 |         comm_W: *comm_W,
-    |                 ^^^^^^^ move occurs because `*comm_W` has type `Vec<<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment>`, which does not implement the `Copy` trait
+553 |     for sub_num_vars in S.num_vars {
+    |                         ^^^^^^^^^^
+    |                         |
+    |                         `S.num_vars` moved due to this implicit call to `.into_iter()`
+    |                         move occurs because `S.num_vars` has type `Vec<usize>`, which does not implement the `Copy` trait
     |
+note: `std::iter::IntoIterator::into_iter` takes ownership of the receiver `self`, which moves `S.num_vars`
+   --> /rustc/129f3b9964af4d4a709d1383930ade12dfe7c081/library/core/src/iter/traits/collect.rs:344:18
+help: consider iterating over a slice of the `Vec<usize>`'s content to avoid moving into the `for` loop
+    |
+553 |     for sub_num_vars in &S.num_vars {
+    |                         +
 help: consider cloning the value if the performance cost is acceptable
     |
-531 -         comm_W: *comm_W,
-531 +         comm_W: comm_W.clone(),
-    |
-
-error[E0507]: cannot move out of `instance.comm_W` which is behind a shared reference
-   --> src/r1cs/mod.rs:741:25
-    |
-741 |     r_instance.comm_W = instance.comm_W;
-    |                         ^^^^^^^^^^^^^^^ move occurs because `instance.comm_W` has type `Vec<<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment>`, which does not implement the `Copy` trait
-    |
-help: consider cloning the value if the performance cost is acceptable
-    |
-741 |     r_instance.comm_W = instance.comm_W.clone();
-    |                                        ++++++++
-
-error[E0507]: cannot move out of `*comm_W` which is behind a shared reference
-   --> src/r1cs/mod.rs:754:15
-    |
-754 |       comm_W: *comm_W,
-    |               ^^^^^^^ move occurs because `*comm_W` has type `Vec<<<E as traits::Engine>::CE as CommitmentEngineTrait<E>>::Commitment>`, which does not implement the `Copy` trait
-    |
-help: consider cloning the value if the performance cost is acceptable
-    |
-754 -       comm_W: *comm_W,
-754 +       comm_W: comm_W.clone(),
-    |
+553 |     for sub_num_vars in S.num_vars.clone() {
+    |                                   ++++++++
 
 Some errors have detailed explanations: E0271, E0277, E0282, E0283, E0284, E0308, E0369, E0507, E0593...
 For more information about an error, try `rustc --explain E0271`.
-error: could not compile `nova-snark` (lib) due to 88 previous errors
+error: could not compile `nova-snark` (lib) due to 86 previous errors
