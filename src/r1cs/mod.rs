@@ -713,7 +713,7 @@ impl<E: Engine> RelaxedR1CSWitness<E> {
 
     Self {
       W,
-      r_W: self.r_W,
+      r_W: self.r_W.clone(),
       E,
       r_E: self.r_E,
     }

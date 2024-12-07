@@ -20,6 +20,7 @@ use crate::{
 use bellpepper_core::{num::AllocatedNum, Circuit, ConstraintSystem, SynthesisError};
 use core::marker::PhantomData;
 use ff::Field;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 struct DirectCircuit<E: Engine, SC: StepCircuit<E::Scalar>> {
@@ -169,7 +170,13 @@ impl<E: Engine, S: RelaxedR1CSSNARKTrait<E>, C: StepCircuit<E::Scalar>> DirectSN
   /// Verifies a proof of satisfiability
   pub fn verify(&self, vk: &VerifierKey<E, S>, io: &[E::Scalar]) -> Result<(), NovaError> {
     // derandomize/unblind commitments
-    let comm_W = E::CE::derandomize(&vk.dk, &self.comm_W, &self.blind_r_W);
+
+    let comm_W = self
+      .comm_W
+      .par_iter()
+      .zip(&self.blind_r_W)
+      .map(|(cmt, blind)| E::CE::derandomize(&vk.dk, cmt, blind))
+      .collect();
 
     // construct an instance using the provided commitment to the witness and z_i and z_{i+1}
     let u_relaxed = RelaxedR1CSInstance::from_r1cs_instance_unchecked(&comm_W, io);

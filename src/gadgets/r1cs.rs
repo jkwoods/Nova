@@ -287,7 +287,7 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
 
     // W_fold = self.W + r * u.W
     let mut W_fold = Vec::new();
-    for (i, (uw, sw)) in u.W.iter().zip(self.W).enumerate() {
+    for (i, (uw, sw)) in u.W.iter().zip(&self.W).enumerate() {
       let rW = uw.scalar_mul(cs.namespace(|| format!("r * u.W {}", i)), &r_bits)?;
       W_fold.push(sw.add(cs.namespace(|| format!("self.W + r * u.W {}", i)), &rW)?);
     }

@@ -134,11 +134,16 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     transcript.absorb(b"U", U);
 
     // compute the full satisfying assignment by concatenating W.W, U.u, and U.X
-    let mut z = [W.W.clone(), vec![U.u], U.X.clone()].concat();
+    let mut z = [
+      W.W.iter().flatten().cloned().collect(),
+      vec![U.u],
+      U.X.clone(),
+    ]
+    .concat();
 
     let (num_rounds_x, num_rounds_y) = (
       usize::try_from(S.num_cons.ilog2()).unwrap(),
-      (usize::try_from(S.num_vars.ilog2()).unwrap() + 1),
+      (usize::try_from(S.num_vars.iter().sum::<usize>().ilog2()).unwrap() + 1),
     );
 
     // outer sum-check
@@ -205,7 +210,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     };
 
     let poly_z = {
-      z.resize(S.num_vars * 2, E::Scalar::ZERO);
+      z.resize(S.num_vars.iter().sum::<usize>() * 2, E::Scalar::ZERO);
       z
     };
 
@@ -229,12 +234,17 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     // where gamma is a public challenge
     // Since commitments to W and E are homomorphic, the verifier can compute a commitment
     // to the batched polynomial.
-    let eval_W = MultilinearPolynomial::evaluate_with(&W.W, &r_y[1..]);
 
-    let w_vec = vec![PolyEvalWitness { p: W.W }, PolyEvalWitness { p: W.E }];
+    // TODO: change from [2]
+    let eval_W = MultilinearPolynomial::evaluate_with(&W.W[2], &r_y[1..]);
+
+    let w_vec = vec![
+      PolyEvalWitness { p: W.W[2].clone() },
+      PolyEvalWitness { p: W.E },
+    ];
     let u_vec = vec![
       PolyEvalInstance {
-        c: U.comm_W,
+        c: U.comm_W[2],
         x: r_y[1..].to_vec(),
         e: eval_W,
       },
@@ -280,7 +290,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
 
     let (num_rounds_x, num_rounds_y) = (
       usize::try_from(vk.S.num_cons.ilog2()).unwrap(),
-      (usize::try_from(vk.S.num_vars.ilog2()).unwrap() + 1),
+      (usize::try_from(vk.S.num_vars.iter().sum::<usize>().ilog2()).unwrap() + 1),
     );
 
     // outer sum-check
@@ -331,7 +341,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
           .into_iter()
           .chain(U.X.iter().cloned())
           .collect::<Vec<E::Scalar>>();
-        SparsePolynomial::new(vk.S.num_vars.log_2(), X).evaluate(&r_y[1..])
+        SparsePolynomial::new(vk.S.num_vars.iter().sum::<usize>().log_2(), X).evaluate(&r_y[1..])
       };
       (E::Scalar::ONE - r_y[0]) * self.eval_W + r_y[0] * eval_X
     };
@@ -375,7 +385,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     // add claims about W and E polynomials
     let u_vec: Vec<PolyEvalInstance<E>> = vec![
       PolyEvalInstance {
-        c: U.comm_W,
+        c: U.comm_W[2],
         x: r_y[1..].to_vec(),
         e: self.eval_W,
       },
