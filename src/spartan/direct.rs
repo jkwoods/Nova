@@ -97,8 +97,8 @@ where
   S: RelaxedR1CSSNARKTrait<E>,
   C: StepCircuit<E::Scalar>,
 {
-  comm_W: Commitment<E>, // commitment to the witness
-  blind_r_W: E::Scalar,
+  comm_W: Vec<Commitment<E>>, // commitment to the witness
+  blind_r_W: Vec<E::Scalar>,
   snark: S, // snark proving the witness is satisfying
   _p: PhantomData<C>,
 }
