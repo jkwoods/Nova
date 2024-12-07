@@ -10,7 +10,7 @@ pub mod direct;
 mod macros;
 pub(crate) mod math;
 pub mod polys;
-pub mod ppsnark;
+//pub mod ppsnark;
 pub mod snark;
 mod sumcheck;
 

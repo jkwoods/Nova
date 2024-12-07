@@ -102,7 +102,11 @@ impl<E: Engine> R1CSShapeSparkRepr<E> {
   pub fn new(S: &R1CSShape<E>) -> R1CSShapeSparkRepr<E> {
     let N = {
       let total_nz = S.A.len() + S.B.len() + S.C.len();
-      max(total_nz, max(2 * S.num_vars, S.num_cons)).next_power_of_two()
+      max(
+        total_nz,
+        max(2 * S.num_vars.iter().sum::<usize>(), S.num_cons),
+      )
+      .next_power_of_two()
     };
 
     let (mut row, mut col) = (vec![0; N], vec![N - 1; N]); // we make col lookup into the last entry of z, so we commit to zeros

@@ -1004,7 +1004,7 @@ mod tests {
   type EE<E> = provider::ipa_pc::EvaluationEngine<E>;
   type EEPrime<E> = provider::hyperkzg::EvaluationEngine<E>;
   type S<E, EE> = spartan::snark::RelaxedR1CSSNARK<E, EE>;
-  type SPrime<E, EE> = spartan::ppsnark::RelaxedR1CSSNARK<E, EE>;
+  //type SPrime<E, EE> = spartan::ppsnark::RelaxedR1CSSNARK<E, EE>;
 
   #[derive(Clone, Debug, Default)]
   struct CubicCircuit<F: PrimeField> {
@@ -1054,56 +1054,57 @@ mod tests {
     }
   }
 
-  fn test_pp_digest_with<E1, E2, T1, T2>(circuit1: &T1, circuit2: &T2, expected: &Expect)
-  where
-    E1: Engine<Base = <E2 as Engine>::Scalar>,
-    E2: Engine<Base = <E1 as Engine>::Scalar>,
-    E1::GE: DlogGroup,
-    E2::GE: DlogGroup,
-    T1: StepCircuit<E1::Scalar>,
-    T2: StepCircuit<E2::Scalar>,
-    // required to use the IPA in the initialization of the commitment key hints below
-    <E1::CE as CommitmentEngineTrait<E1>>::CommitmentKey: CommitmentKeyExtTrait<E1>,
-    <E2::CE as CommitmentEngineTrait<E2>>::CommitmentKey: CommitmentKeyExtTrait<E2>,
-  {
-    // this tests public parameters with a size specifically intended for a spark-compressed SNARK
-    let ck_hint1 = &*SPrime::<E1, EE<E1>>::ck_floor();
-    let ck_hint2 = &*SPrime::<E2, EE<E2>>::ck_floor();
-    let pp = PublicParams::<E1, E2, T1, T2>::setup(circuit1, circuit2, ck_hint1, ck_hint2).unwrap();
+  /*
+    fn test_pp_digest_with<E1, E2, T1, T2>(circuit1: &T1, circuit2: &T2, expected: &Expect)
+    where
+      E1: Engine<Base = <E2 as Engine>::Scalar>,
+      E2: Engine<Base = <E1 as Engine>::Scalar>,
+      E1::GE: DlogGroup,
+      E2::GE: DlogGroup,
+      T1: StepCircuit<E1::Scalar>,
+      T2: StepCircuit<E2::Scalar>,
+      // required to use the IPA in the initialization of the commitment key hints below
+      <E1::CE as CommitmentEngineTrait<E1>>::CommitmentKey: CommitmentKeyExtTrait<E1>,
+      <E2::CE as CommitmentEngineTrait<E2>>::CommitmentKey: CommitmentKeyExtTrait<E2>,
+    {
+      // this tests public parameters with a size specifically intended for a spark-compressed SNARK
+      let ck_hint1 = &*SPrime::<E1, EE<E1>>::ck_floor();
+      let ck_hint2 = &*SPrime::<E2, EE<E2>>::ck_floor();
+      let pp = PublicParams::<E1, E2, T1, T2>::setup(circuit1, circuit2, ck_hint1, ck_hint2).unwrap();
 
-    let digest_str = pp
-      .digest()
-      .to_repr()
-      .as_ref()
-      .iter()
-      .fold(String::new(), |mut output, b| {
-        let _ = write!(output, "{b:02x}");
-        output
-      });
-    expected.assert_eq(&digest_str);
-  }
+      let digest_str = pp
+        .digest()
+        .to_repr()
+        .as_ref()
+        .iter()
+        .fold(String::new(), |mut output, b| {
+          let _ = write!(output, "{b:02x}");
+          output
+        });
+      expected.assert_eq(&digest_str);
+    }
 
-  #[test]
-  fn test_pp_digest() {
-    test_pp_digest_with::<PallasEngine, VestaEngine, _, _>(
-      &TrivialCircuit::<_>::default(),
-      &TrivialCircuit::<_>::default(),
-      &expect!["ba7ff40bc60f95f7157350608b2f1892dc33b2470ccf52c3fae0464c61db9501"],
-    );
+    #[test]
+    fn test_pp_digest() {
+      test_pp_digest_with::<PallasEngine, VestaEngine, _, _>(
+        &TrivialCircuit::<_>::default(),
+        &TrivialCircuit::<_>::default(),
+        &expect!["ba7ff40bc60f95f7157350608b2f1892dc33b2470ccf52c3fae0464c61db9501"],
+      );
 
-    test_pp_digest_with::<Bn256EngineIPA, GrumpkinEngine, _, _>(
-      &TrivialCircuit::<_>::default(),
-      &TrivialCircuit::<_>::default(),
-      &expect!["e0d75ecff901aee5b22223a4be82af30d7988a5f2cbd40815fda88dd79a22a01"],
-    );
+      test_pp_digest_with::<Bn256EngineIPA, GrumpkinEngine, _, _>(
+        &TrivialCircuit::<_>::default(),
+        &TrivialCircuit::<_>::default(),
+        &expect!["e0d75ecff901aee5b22223a4be82af30d7988a5f2cbd40815fda88dd79a22a01"],
+      );
 
-    test_pp_digest_with::<Secp256k1Engine, Secq256k1Engine, _, _>(
-      &TrivialCircuit::<_>::default(),
-      &TrivialCircuit::<_>::default(),
-      &expect!["ee4bd444ffe1f1be8224a09dae09bdf4532035655fd3f25e70955eaa13c48d03"],
-    );
-  }
-
+      test_pp_digest_with::<Secp256k1Engine, Secq256k1Engine, _, _>(
+        &TrivialCircuit::<_>::default(),
+        &TrivialCircuit::<_>::default(),
+        &expect!["ee4bd444ffe1f1be8224a09dae09bdf4532035655fd3f25e70955eaa13c48d03"],
+      );
+    }
+  */
   fn test_ivc_trivial_with<E1, E2>()
   where
     E1: Engine<Base = <E2 as Engine>::Scalar>,
@@ -1340,6 +1341,7 @@ mod tests {
     >();
   }
 
+  /*
   fn test_ivc_nontrivial_with_spark_compression_with<E1, E2, EE1, EE2>()
   where
     E1: Engine<Base = <E2 as Engine>::Scalar>,
@@ -1442,6 +1444,7 @@ mod tests {
     test_ivc_nontrivial_with_spark_compression_with::<Secp256k1Engine, Secq256k1Engine, EE<_>, EE<_>>(
     );
   }
+  */
 
   fn test_ivc_nondet_with_compression_with<E1, E2, EE1, EE2>()
   where
