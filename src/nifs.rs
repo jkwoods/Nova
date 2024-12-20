@@ -483,13 +483,13 @@ mod tests {
       B.push((3, num_vars, one));
       C.push((3, num_vars + 2, one));
 
-      (num_cons, num_vars, num_io, A, B, C)
+      (num_cons, vec![num_vars], num_io, A, B, C)
     };
 
     // create a shape object
     let rows = num_cons;
     let num_inputs = num_io + 1;
-    let cols = num_vars + num_inputs;
+    let cols = num_vars.iter().sum::<usize>() + num_inputs;
     let S = {
       let res = R1CSShape::new(
         num_cons,
@@ -513,20 +513,23 @@ mod tests {
         let i0 = *I;
 
         // compute a satisfying (vars, X) tuple
-        let (O, vars, X) = {
+        let (O, sub_vars, X) = {
           let z0 = i0 * i0; // constraint 0
           let z1 = i0 * z0; // constraint 1
           let z2 = z1 + i0; // constraint 2
           let i1 = z2 + one + one + one + one + one; // constraint 3
 
           // store the witness and IO for the instance
-          let W = vec![z0, z1, z2];
+          let W = [z0, z1, z2];
           let X = vec![i0, i1];
           (i1, W, X)
         };
 
         let W = {
-          let res = R1CSWitness::new(&S, &vars);
+          let sub_vars_ref: &[E::Scalar] = &sub_vars;
+          let vars = vec![sub_vars_ref];
+
+          let res = R1CSWitness::new(&S, vars);
           assert!(res.is_ok());
           res.unwrap()
         };
@@ -620,13 +623,13 @@ mod tests {
       B.push((3, num_vars, one));
       C.push((3, num_vars + 2, one));
 
-      (num_cons, num_vars, num_io, A, B, C)
+      (num_cons, vec![num_vars], num_io, A, B, C)
     };
 
     // create a shape object
     let rows = num_cons;
     let num_inputs = num_io + 1;
-    let cols = num_vars + num_inputs;
+    let cols = num_vars.iter().sum::<usize>() + num_inputs;
     let S = {
       let res = R1CSShape::new(
         num_cons,
@@ -650,20 +653,22 @@ mod tests {
         let i0 = *I;
 
         // compute a satisfying (vars, X) tuple
-        let (O, vars, X) = {
+        let (O, sub_vars, X) = {
           let z0 = i0 * i0; // constraint 0
           let z1 = i0 * z0; // constraint 1
           let z2 = z1 + i0; // constraint 2
           let i1 = z2 + one + one + one + one + one; // constraint 3
 
           // store the witness and IO for the instance
-          let W = vec![z0, z1, z2];
+          let W = [z0, z1, z2];
           let X = vec![i0, i1];
           (i1, W, X)
         };
 
         let W = {
-          let res = R1CSWitness::new(&S, &vars);
+          let sub_vars_ref: &[E::Scalar] = &sub_vars;
+          let vars = vec![sub_vars_ref];
+          let res = R1CSWitness::new(&S, vars);
           assert!(res.is_ok());
           res.unwrap()
         };

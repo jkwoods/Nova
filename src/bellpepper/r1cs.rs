@@ -36,7 +36,17 @@ impl<E: Engine> NovaWitness<E> for SatisfyingAssignment<E> {
     shape: &R1CSShape<E>,
     ck: &CommitmentKey<E>,
   ) -> Result<(R1CSInstance<E>, R1CSWitness<E>), NovaError> {
-    let W = R1CSWitness::<E>::new(shape, self.aux_assignment())?;
+    let long_wit = self.aux_assignment();
+    let mut div_wit = Vec::new();
+    let mut start = 0;
+    let mut end = 0;
+    for v in &shape.num_vars {
+      start = end;
+      end += v;
+      div_wit.push(&long_wit[start..end]);
+    }
+
+    let W = R1CSWitness::<E>::new(shape, div_wit)?;
     let X = &self.input_assignment()[1..];
 
     let comm_W = W.commit(ck);
@@ -62,12 +72,15 @@ macro_rules! impl_nova_shape {
         let mut X = (&mut A, &mut B, &mut C, &mut num_cons_added);
         let num_inputs = self.num_inputs();
         let num_constraints = self.num_constraints();
-        let num_vars = self.num_aux();
+
+        // hardcode shape (TODO?)
+        let num_vars = vec![1, 2, self.num_aux() - 3];
+        let total_num_vars = num_vars.iter().sum();
 
         for constraint in self.constraints.iter() {
           add_constraint(
             &mut X,
-            num_vars,
+            total_num_vars,
             &constraint.0,
             &constraint.1,
             &constraint.2,
@@ -75,9 +88,9 @@ macro_rules! impl_nova_shape {
         }
         assert_eq!(num_cons_added, num_constraints);
 
-        A.cols = num_vars + num_inputs;
-        B.cols = num_vars + num_inputs;
-        C.cols = num_vars + num_inputs;
+        A.cols = total_num_vars + num_inputs;
+        B.cols = total_num_vars + num_inputs;
+        C.cols = total_num_vars + num_inputs;
 
         // Don't count One as an input for shape's purposes.
         let S = R1CSShape::new(num_constraints, num_vars, num_inputs - 1, A, B, C).unwrap();

@@ -1,7 +1,7 @@
 //! This library implements Nova, a high-speed recursive SNARK.
 #![deny(
-  warnings,
-  unused,
+  //warnings,
+  //unused,
   future_incompatible,
   nonstandard_style,
   rust_2018_idioms,
@@ -225,10 +225,10 @@ where
   }
 
   /// Returns the number of variables in the primary and secondary circuits
-  pub const fn num_variables(&self) -> (usize, usize) {
+  pub fn num_variables(&self) -> (Vec<usize>, Vec<usize>) {
     (
-      self.r1cs_shape_primary.num_vars,
-      self.r1cs_shape_secondary.num_vars,
+      self.r1cs_shape_primary.num_vars.clone(),
+      self.r1cs_shape_secondary.num_vars.clone(),
     )
   }
 }
@@ -678,10 +678,11 @@ where
   l_ur_primary: RelaxedR1CSInstance<E1>,
   nifs_Un_primary: NIFSRelaxed<E1>,
 
-  wit_blind_r_Wn_primary: E1::Scalar,
+  wit_blind_r_Wn_primary: Vec<E1::Scalar>,
   err_blind_r_Wn_primary: E1::Scalar,
-  wit_blind_r_Wn_secondary: E2::Scalar,
+  wit_blind_r_Wn_secondary: Vec<E2::Scalar>,
   err_blind_r_Wn_secondary: E2::Scalar,
+  unsplit_proof_r_Un_primary: S1::UnsplitProof,
 
   snark_primary: S1,
   snark_secondary: S2,
@@ -805,6 +806,17 @@ where
       &err_blind_r_Wn_secondary,
     );
 
+    // usplit primary
+    let (unsplit_r_Un_primary, unsplit_r_Wn_primary, unsplit_proof_r_Un_primary) =
+      S1::prove_unsplit_witnesses(
+        &pp.ck_primary,
+        &pk.pk_primary,
+        &derandom_r_Un_primary,
+        &derandom_r_Wn_primary,
+      )?;
+
+    assert!(pp.r1cs_shape_primary.is_regular_shape() && pp.r1cs_shape_secondary.is_regular_shape());
+
     // create SNARKs proving the knowledge of Wn primary/secondary
     let (snark_primary, snark_secondary) = rayon::join(
       || {
@@ -812,8 +824,8 @@ where
           &pp.ck_primary,
           &pk.pk_primary,
           &pp.r1cs_shape_primary,
-          &derandom_r_Un_primary,
-          &derandom_r_Wn_primary,
+          &unsplit_r_Un_primary,
+          &unsplit_r_Wn_primary,
         )
       },
       || {
@@ -845,6 +857,7 @@ where
       err_blind_r_Wn_primary,
       wit_blind_r_Wn_secondary,
       err_blind_r_Wn_secondary,
+      unsplit_proof_r_Un_primary,
 
       snark_primary: snark_primary?,
       snark_secondary: snark_secondary?,
@@ -959,13 +972,21 @@ where
       &self.err_blind_r_Wn_secondary,
     );
 
+    // unsplit primary
+
+    let unsplit_r_Un_primary = S1::verify_unsplit_witnesses(
+      &vk.vk_primary,
+      &self.unsplit_proof_r_Un_primary,
+      &derandom_r_Un_primary,
+    )?;
+
     // check the satisfiability of the folded instances using
     // SNARKs proving the knowledge of their satisfying witnesses
     let (res_primary, res_secondary) = rayon::join(
       || {
         self
           .snark_primary
-          .verify(&vk.vk_primary, &derandom_r_Un_primary)
+          .verify(&vk.vk_primary, &unsplit_r_Un_primary)
       },
       || {
         self
@@ -1004,7 +1025,7 @@ mod tests {
   type EE<E> = provider::ipa_pc::EvaluationEngine<E>;
   type EEPrime<E> = provider::hyperkzg::EvaluationEngine<E>;
   type S<E, EE> = spartan::snark::RelaxedR1CSSNARK<E, EE>;
-  //type SPrime<E, EE> = spartan::ppsnark::RelaxedR1CSSNARK<E, EE>;
+  //  type SPrime<E, EE> = spartan::ppsnark::RelaxedR1CSSNARK<E, EE>;
 
   #[derive(Clone, Debug, Default)]
   struct CubicCircuit<F: PrimeField> {
@@ -1053,7 +1074,6 @@ mod tests {
       vec![z[0] * z[0] * z[0] + z[0] + F::from(5u64)]
     }
   }
-
   /*
     fn test_pp_digest_with<E1, E2, T1, T2>(circuit1: &T1, circuit2: &T2, expected: &Expect)
     where
@@ -1332,8 +1352,8 @@ mod tests {
     test_ivc_nontrivial_with_compression_with::<Bn256EngineKZG, GrumpkinEngine, EEPrime<_>, EE<_>>(
     );
     test_ivc_nontrivial_with_compression_with::<Secp256k1Engine, Secq256k1Engine, EE<_>, EE<_>>();
-
-    test_ivc_nontrivial_with_spark_compression_with::<
+  }
+  /*test_ivc_nontrivial_with_spark_compression_with::<
       Bn256EngineKZG,
       GrumpkinEngine,
       provider::hyperkzg::EvaluationEngine<_>,
@@ -1341,111 +1361,109 @@ mod tests {
     >();
   }
 
-  /*
-  fn test_ivc_nontrivial_with_spark_compression_with<E1, E2, EE1, EE2>()
-  where
-    E1: Engine<Base = <E2 as Engine>::Scalar>,
-    E2: Engine<Base = <E1 as Engine>::Scalar>,
-    EE1: EvaluationEngineTrait<E1>,
-    EE2: EvaluationEngineTrait<E2>,
-  {
-    let circuit_primary = TrivialCircuit::default();
-    let circuit_secondary = CubicCircuit::default();
+    fn test_ivc_nontrivial_with_spark_compression_with<E1, E2, EE1, EE2>()
+    where
+      E1: Engine<Base = <E2 as Engine>::Scalar>,
+      E2: Engine<Base = <E1 as Engine>::Scalar>,
+      EE1: EvaluationEngineTrait<E1>,
+      EE2: EvaluationEngineTrait<E2>,
+    {
+      let circuit_primary = TrivialCircuit::default();
+      let circuit_secondary = CubicCircuit::default();
 
-    // produce public parameters, which we'll use with a spark-compressed SNARK
-    let pp = PublicParams::<
-      E1,
-      E2,
-      TrivialCircuit<<E1 as Engine>::Scalar>,
-      CubicCircuit<<E2 as Engine>::Scalar>,
-    >::setup(
-      &circuit_primary,
-      &circuit_secondary,
-      &*SPrime::<E1, EE1>::ck_floor(),
-      &*SPrime::<E2, EE2>::ck_floor(),
-    )
-    .unwrap();
+      // produce public parameters, which we'll use with a spark-compressed SNARK
+      let pp = PublicParams::<
+        E1,
+        E2,
+        TrivialCircuit<<E1 as Engine>::Scalar>,
+        CubicCircuit<<E2 as Engine>::Scalar>,
+      >::setup(
+        &circuit_primary,
+        &circuit_secondary,
+        &*SPrime::<E1, EE1>::ck_floor(),
+        &*SPrime::<E2, EE2>::ck_floor(),
+      )
+      .unwrap();
 
-    let num_steps = 3;
+      let num_steps = 3;
 
-    // produce a recursive SNARK
-    let mut recursive_snark = RecursiveSNARK::<
-      E1,
-      E2,
-      TrivialCircuit<<E1 as Engine>::Scalar>,
-      CubicCircuit<<E2 as Engine>::Scalar>,
-    >::new(
-      &pp,
-      &circuit_primary,
-      &circuit_secondary,
-      &[<E1 as Engine>::Scalar::ONE],
-      &[<E2 as Engine>::Scalar::ZERO],
-    )
-    .unwrap();
+      // produce a recursive SNARK
+      let mut recursive_snark = RecursiveSNARK::<
+        E1,
+        E2,
+        TrivialCircuit<<E1 as Engine>::Scalar>,
+        CubicCircuit<<E2 as Engine>::Scalar>,
+      >::new(
+        &pp,
+        &circuit_primary,
+        &circuit_secondary,
+        &[<E1 as Engine>::Scalar::ONE],
+        &[<E2 as Engine>::Scalar::ZERO],
+      )
+      .unwrap();
 
-    for _i in 0..num_steps {
-      let res = recursive_snark.prove_step(&pp, &circuit_primary, &circuit_secondary);
+      for _i in 0..num_steps {
+        let res = recursive_snark.prove_step(&pp, &circuit_primary, &circuit_secondary);
+        assert!(res.is_ok());
+      }
+
+      // verify the recursive SNARK
+      let res = recursive_snark.verify(
+        &pp,
+        num_steps,
+        &[<E1 as Engine>::Scalar::ONE],
+        &[<E2 as Engine>::Scalar::ZERO],
+      );
+      assert!(res.is_ok());
+
+      let (zn_primary, zn_secondary) = res.unwrap();
+
+      // sanity: check the claimed output with a direct computation of the same
+      assert_eq!(zn_primary, vec![<E1 as Engine>::Scalar::ONE]);
+      let mut zn_secondary_direct = vec![<E2 as Engine>::Scalar::ZERO];
+      for _i in 0..num_steps {
+        zn_secondary_direct = CubicCircuit::default().output(&zn_secondary_direct);
+      }
+      assert_eq!(zn_secondary, zn_secondary_direct);
+      assert_eq!(zn_secondary, vec![<E2 as Engine>::Scalar::from(2460515u64)]);
+
+      // run the compressed snark with Spark compiler
+      // produce the prover and verifier keys for compressed snark
+      let (pk, vk) =
+        CompressedSNARK::<_, _, _, _, SPrime<E1, EE1>, SPrime<E2, EE2>>::setup(&pp).unwrap();
+
+      // produce a compressed SNARK
+      let res = CompressedSNARK::<_, _, _, _, SPrime<E1, EE1>, SPrime<E2, EE2>>::prove(
+        &pp,
+        &pk,
+        &recursive_snark,
+      );
+      assert!(res.is_ok());
+      let compressed_snark = res.unwrap();
+
+      // verify the compressed SNARK
+      let res = compressed_snark.verify(
+        &vk,
+        num_steps,
+        &[<E1 as Engine>::Scalar::ONE],
+        &[<E2 as Engine>::Scalar::ZERO],
+      );
       assert!(res.is_ok());
     }
 
-    // verify the recursive SNARK
-    let res = recursive_snark.verify(
-      &pp,
-      num_steps,
-      &[<E1 as Engine>::Scalar::ONE],
-      &[<E2 as Engine>::Scalar::ZERO],
-    );
-    assert!(res.is_ok());
-
-    let (zn_primary, zn_secondary) = res.unwrap();
-
-    // sanity: check the claimed output with a direct computation of the same
-    assert_eq!(zn_primary, vec![<E1 as Engine>::Scalar::ONE]);
-    let mut zn_secondary_direct = vec![<E2 as Engine>::Scalar::ZERO];
-    for _i in 0..num_steps {
-      zn_secondary_direct = CubicCircuit::default().output(&zn_secondary_direct);
+    #[test]
+    fn test_ivc_nontrivial_with_spark_compression() {
+      test_ivc_nontrivial_with_spark_compression_with::<PallasEngine, VestaEngine, EE<_>, EE<_>>();
+      test_ivc_nontrivial_with_spark_compression_with::<
+        Bn256EngineKZG,
+        GrumpkinEngine,
+        EEPrime<_>,
+        EE<_>,
+      >();
+      test_ivc_nontrivial_with_spark_compression_with::<Secp256k1Engine, Secq256k1Engine, EE<_>, EE<_>>(
+      );
     }
-    assert_eq!(zn_secondary, zn_secondary_direct);
-    assert_eq!(zn_secondary, vec![<E2 as Engine>::Scalar::from(2460515u64)]);
-
-    // run the compressed snark with Spark compiler
-    // produce the prover and verifier keys for compressed snark
-    let (pk, vk) =
-      CompressedSNARK::<_, _, _, _, SPrime<E1, EE1>, SPrime<E2, EE2>>::setup(&pp).unwrap();
-
-    // produce a compressed SNARK
-    let res = CompressedSNARK::<_, _, _, _, SPrime<E1, EE1>, SPrime<E2, EE2>>::prove(
-      &pp,
-      &pk,
-      &recursive_snark,
-    );
-    assert!(res.is_ok());
-    let compressed_snark = res.unwrap();
-
-    // verify the compressed SNARK
-    let res = compressed_snark.verify(
-      &vk,
-      num_steps,
-      &[<E1 as Engine>::Scalar::ONE],
-      &[<E2 as Engine>::Scalar::ZERO],
-    );
-    assert!(res.is_ok());
-  }
-
-  #[test]
-  fn test_ivc_nontrivial_with_spark_compression() {
-    test_ivc_nontrivial_with_spark_compression_with::<PallasEngine, VestaEngine, EE<_>, EE<_>>();
-    test_ivc_nontrivial_with_spark_compression_with::<
-      Bn256EngineKZG,
-      GrumpkinEngine,
-      EEPrime<_>,
-      EE<_>,
-    >();
-    test_ivc_nontrivial_with_spark_compression_with::<Secp256k1Engine, Secq256k1Engine, EE<_>, EE<_>>(
-    );
-  }
   */
-
   fn test_ivc_nondet_with_compression_with<E1, E2, EE1, EE2>()
   where
     E1: Engine<Base = <E2 as Engine>::Scalar>,

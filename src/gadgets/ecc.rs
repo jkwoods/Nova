@@ -1095,6 +1095,7 @@ mod tests {
     let mut cs = SatisfyingAssignment::<E2>::new();
     let (a, e) = synthesize_add_equal::<E1, _>(cs.namespace(|| "synthesize add equal"));
     let (inst, witness) = cs.r1cs_instance_and_witness(&shape, &ck).unwrap();
+
     let a_p: Point<E1> = Point::new(
       a.x.get_value().unwrap(),
       a.y.get_value().unwrap(),

@@ -17,11 +17,12 @@ use crate::{
     PolyEvalInstance, PolyEvalWitness,
   },
   traits::{
+    commitment::CommitmentEngineTrait,
     evaluation::EvaluationEngineTrait,
     snark::{DigestHelperTrait, RelaxedR1CSSNARKTrait},
     Engine, TranscriptEngineTrait,
   },
-  CommitmentKey,
+  CommitmentKey, CE,
 };
 
 use ff::Field;
@@ -91,9 +92,21 @@ pub struct RelaxedR1CSSNARK<E: Engine, EE: EvaluationEngineTrait<E>> {
   eval_arg: EE::EvaluationArgument,
 }
 
+/// A type that holds unsplitting proof information
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(bound = "")]
+pub struct UnsplitProof<E: Engine, EE: EvaluationEngineTrait<E>> {
+  comm_W: <E::CE as CommitmentEngineTrait<E>>::Commitment,
+  big_ipa: EE::EvaluationArgument,
+  big_eval: E::Scalar,
+  small_ipas: Vec<EE::EvaluationArgument>,
+  small_evals: Vec<E::Scalar>,
+}
+
 impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK<E, EE> {
   type ProverKey = ProverKey<E, EE>;
   type VerifierKey = VerifierKey<E, EE>;
+  type UnsplitProof = UnsplitProof<E, EE>;
 
   fn setup(
     ck: &CommitmentKey<E>,
@@ -125,6 +138,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     let S = S.pad();
     // sanity check that R1CSShape has all required size characteristics
     assert!(S.is_regular_shape());
+    assert_eq!(W.W.len(), 1);
 
     let W = W.pad(&S); // pad the witness
     let mut transcript = E::TE::new(b"RelaxedR1CSSNARK");
@@ -134,16 +148,11 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     transcript.absorb(b"U", U);
 
     // compute the full satisfying assignment by concatenating W.W, U.u, and U.X
-    let mut z = [
-      W.W.iter().flatten().cloned().collect(),
-      vec![U.u],
-      U.X.clone(),
-    ]
-    .concat();
+    let mut z = [W.W[0].clone(), vec![U.u], U.X.clone()].concat();
 
     let (num_rounds_x, num_rounds_y) = (
       usize::try_from(S.num_cons.ilog2()).unwrap(),
-      (usize::try_from(S.num_vars.iter().sum::<usize>().ilog2()).unwrap() + 1),
+      (usize::try_from(S.num_vars[0].ilog2()).unwrap() + 1),
     );
 
     // outer sum-check
@@ -210,7 +219,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     };
 
     let poly_z = {
-      z.resize(S.num_vars.iter().sum::<usize>() * 2, E::Scalar::ZERO);
+      z.resize(S.num_vars[0] * 2, E::Scalar::ZERO);
       z
     };
 
@@ -235,16 +244,15 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     // Since commitments to W and E are homomorphic, the verifier can compute a commitment
     // to the batched polynomial.
 
-    // TODO: change from [2]
-    let eval_W = MultilinearPolynomial::evaluate_with(&W.W[2], &r_y[1..]);
+    let eval_W = MultilinearPolynomial::evaluate_with(&W.W[0], &r_y[1..]);
 
     let w_vec = vec![
-      PolyEvalWitness { p: W.W[2].clone() },
+      PolyEvalWitness { p: W.W[0].clone() },
       PolyEvalWitness { p: W.E },
     ];
     let u_vec = vec![
       PolyEvalInstance {
-        c: U.comm_W[2],
+        c: U.comm_W[0],
         x: r_y[1..].to_vec(),
         e: eval_W,
       },
@@ -290,7 +298,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
 
     let (num_rounds_x, num_rounds_y) = (
       usize::try_from(vk.S.num_cons.ilog2()).unwrap(),
-      (usize::try_from(vk.S.num_vars.iter().sum::<usize>().ilog2()).unwrap() + 1),
+      (usize::try_from(vk.S.num_vars[0].ilog2()).unwrap() + 1),
     );
 
     // outer sum-check
@@ -341,7 +349,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
           .into_iter()
           .chain(U.X.iter().cloned())
           .collect::<Vec<E::Scalar>>();
-        SparsePolynomial::new(vk.S.num_vars.iter().sum::<usize>().log_2(), X).evaluate(&r_y[1..])
+        SparsePolynomial::new(vk.S.num_vars[0].log_2(), X).evaluate(&r_y[1..])
       };
       (E::Scalar::ONE - r_y[0]) * self.eval_W + r_y[0] * eval_X
     };
@@ -414,6 +422,142 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     )?;
 
     Ok(())
+  }
+
+  fn prove_unsplit_witnesses(
+    ck: &CommitmentKey<E>,
+    pk: &Self::ProverKey,
+    U: &RelaxedR1CSInstance<E>,
+    W: &RelaxedR1CSWitness<E>,
+  ) -> Result<
+    (
+      RelaxedR1CSInstance<E>,
+      RelaxedR1CSWitness<E>,
+      Self::UnsplitProof,
+    ),
+    NovaError,
+  > {
+    let wits: Vec<E::Scalar> = W.W.iter().flatten().cloned().collect();
+    let comm_W = CE::<E>::commit(ck, &wits, &E::Scalar::ZERO);
+
+    let mut transcript = <E as Engine>::TE::new(b"unsplit");
+    transcript.absorb(b"W", &comm_W);
+
+    // get rs from transcript
+    let mut r = Vec::new();
+    for _i in 0..W.W.len() {
+      r.push(transcript.squeeze(b"r")?);
+    }
+
+    // prove IPAs
+    let mut small_ipas = Vec::new();
+    let mut small_evals = Vec::new();
+    let mut big_r = Vec::new();
+    let mut eval_sum = E::Scalar::ONE;
+    for i in 0..W.W.len() {
+      let small_r = vec![r[i]; W.W[i].len()];
+      let small_eval = MultilinearPolynomial::evaluate_with(&W.W[i], &small_r);
+      small_ipas.push(EE::prove(
+        ck,
+        &pk.pk_ee,
+        &mut transcript,
+        &U.comm_W[i],
+        &W.W[i],
+        &small_r,
+        &small_eval,
+      )?);
+      small_evals.push(small_eval);
+      eval_sum += small_eval;
+      big_r.extend(small_r);
+    }
+
+    let big_eval = MultilinearPolynomial::evaluate_with(&wits, &big_r);
+    assert_eq!(big_eval, eval_sum);
+    let big_ipa = EE::prove(
+      ck,
+      &pk.pk_ee,
+      &mut transcript,
+      &comm_W,
+      &wits,
+      &big_r,
+      &big_eval,
+    )?;
+
+    Ok((
+      RelaxedR1CSInstance {
+        comm_W: vec![comm_W],
+        comm_E: U.comm_E.clone(),
+        X: U.X.clone(),
+        u: U.u,
+      },
+      RelaxedR1CSWitness {
+        W: vec![wits],
+        r_W: vec![W.r_W.iter().sum()],
+        E: W.E.clone(),
+        r_E: W.r_E.clone(),
+      },
+      UnsplitProof {
+        comm_W,
+        big_ipa,
+        big_eval,
+        small_ipas,
+        small_evals,
+      },
+    ))
+  }
+
+  fn verify_unsplit_witnesses(
+    vk: &Self::VerifierKey,
+    p: &Self::UnsplitProof,
+    U: &RelaxedR1CSInstance<E>,
+  ) -> Result<RelaxedR1CSInstance<E>, NovaError> {
+    assert_eq!(p.small_ipas.len(), p.small_evals.len());
+    assert_eq!(U.comm_W.len(), p.small_evals.len());
+
+    let mut transcript = <E as Engine>::TE::new(b"unsplit");
+    transcript.absorb(b"W", &p.comm_W);
+
+    // get rs from transcript
+    let mut r = Vec::new();
+    for _i in 0..U.comm_W.len() {
+      r.push(transcript.squeeze(b"r")?);
+    }
+
+    // verify IPAs
+    let mut big_r = Vec::new();
+    let mut eval_sum = E::Scalar::ONE;
+    for (i, (ipa, eval)) in p.small_ipas.iter().zip(p.small_evals.iter()).enumerate() {
+      let small_r = vec![r[i]; vk.S.num_vars[i]];
+      EE::verify(
+        &vk.vk_ee,
+        &mut transcript,
+        &U.comm_W[i],
+        &small_r,
+        &eval,
+        &ipa,
+      )?;
+      eval_sum += eval;
+      big_r.extend(small_r);
+    }
+
+    EE::verify(
+      &vk.vk_ee,
+      &mut transcript,
+      &p.comm_W,
+      &big_r,
+      &p.big_eval,
+      &p.big_ipa,
+    )?;
+    if eval_sum != p.big_eval {
+      return Err(NovaError::UnsplitError);
+    }
+
+    Ok(RelaxedR1CSInstance {
+      comm_W: vec![p.comm_W],
+      comm_E: U.comm_E.clone(),
+      X: U.X.clone(),
+      u: U.u,
+    })
   }
 }
 

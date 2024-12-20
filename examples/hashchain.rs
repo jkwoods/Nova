@@ -141,11 +141,11 @@ fn main() {
     );
 
     println!(
-      "Number of variables per step (primary circuit): {}",
+      "Number of variables per step (primary circuit): {:#?}",
       pp.num_variables().0
     );
     println!(
-      "Number of variables per step (secondary circuit): {}",
+      "Number of variables per step (secondary circuit): {:#?}",
       pp.num_variables().1
     );
 

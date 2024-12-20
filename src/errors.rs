@@ -70,6 +70,9 @@ pub enum NovaError {
   /// returned when hyrax has a zk ipa problem
   #[error("InvlidIPA")]
   InvalidIPA,
+  /// returned when unsplitting fails
+  #[error("UnsplitError")]
+  UnsplitError,
 }
 
 impl From<bellpepper_core::SynthesisError> for NovaError {

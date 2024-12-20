@@ -155,10 +155,10 @@ impl<E: Engine> R1CSShape<E> {
   #[inline]
   pub(crate) fn is_regular_shape(&self) -> bool {
     let cons_valid = self.num_cons.next_power_of_two() == self.num_cons;
-    let vars_valid = self.num_vars.iter().sum::<usize>().next_power_of_two()
-      == self.num_vars.iter().sum::<usize>();
+    let vars_valid = self.num_vars[0].next_power_of_two() == self.num_vars[0];
+    let vars_flat = self.num_vars.len() == 1;
     let io_lt_vars = self.num_io < self.num_vars.iter().sum();
-    cons_valid && vars_valid && io_lt_vars
+    cons_valid && vars_valid && vars_flat && io_lt_vars
   }
 
   pub fn multiply_vec(
@@ -506,24 +506,17 @@ impl<E: Engine> R1CSShape<E> {
 impl<E: Engine> R1CSWitness<E> {
   /// A method to create a witness object using a vector of scalars
   pub fn new(S: &R1CSShape<E>, W: Vec<&[E::Scalar]>) -> Result<R1CSWitness<E>, NovaError> {
-    if S.num_vars.len() != W.len() {
-      return Err(NovaError::InvalidWitnessLength);
-    }
-    for (s, w) in S.num_vars.iter().zip(&W) {
-      if *s != w.len() {
+    let mut wits = Vec::new();
+    let mut r_W = Vec::new();
+    for (n, wi) in S.num_vars.iter().zip(W) {
+      if *n != wi.len() {
         return Err(NovaError::InvalidWitnessLength);
       }
-    }
-
-    let mut r_W = Vec::new();
-    for _i in 0..W.len() {
       r_W.push(E::Scalar::random(&mut OsRng));
+      wits.push(wi.to_owned());
     }
 
-    Ok(R1CSWitness {
-      W: W.iter().map(|w| w.to_vec()).collect(),
-      r_W,
-    })
+    Ok(R1CSWitness { W: wits, r_W })
   }
 
   /// Commits to the witness using the supplied generators
@@ -949,12 +942,12 @@ mod tests {
       B.push((3, num_vars, one));
       C.push((3, num_vars + 2, one));
 
-      (num_cons, num_vars, num_io, A, B, C)
+      (num_cons, vec![num_vars], num_io, A, B, C)
     };
 
     // create a shape object
     let rows = num_cons;
-    let cols = num_vars + num_io + 1;
+    let cols = num_vars.iter().sum::<usize>() + num_io + 1;
 
     let res = R1CSShape::new(
       num_cons,
