@@ -2,7 +2,7 @@
 #![allow(non_snake_case)]
 
 use crate::{
-  constants::{NUM_CHALLENGE_BITS, NUM_FE_FOR_RO, NUM_FE_FOR_RO_RELAXED},
+  constants::{NUM_CHALLENGE_BITS, NUM_FE_WITHOUT_WIT_FOR_RO, NUM_FE_WITHOUT_WIT_FOR_RO_RELAXED},
   errors::NovaError,
   r1cs::{R1CSInstance, R1CSShape, R1CSWitness, RelaxedR1CSInstance, RelaxedR1CSWitness},
   scalar_as_base,
@@ -48,7 +48,10 @@ impl<E: Engine> NIFS<E> {
     W2: &R1CSWitness<E>,
   ) -> Result<(NIFS<E>, (RelaxedR1CSInstance<E>, RelaxedR1CSWitness<E>)), NovaError> {
     // initialize a new RO
-    let mut ro = E::RO::new(ro_consts.clone(), NUM_FE_FOR_RO);
+    let mut ro = E::RO::new(
+      ro_consts.clone(),
+      NUM_FE_WITHOUT_WIT_FOR_RO + 3 * S.num_vars.len(),
+    );
 
     // append the digest of pp to the transcript
     ro.absorb(scalar_as_base::<E>(*pp_digest));
@@ -89,7 +92,10 @@ impl<E: Engine> NIFS<E> {
     U2: &R1CSInstance<E>,
   ) -> Result<RelaxedR1CSInstance<E>, NovaError> {
     // initialize a new RO
-    let mut ro = E::RO::new(ro_consts.clone(), NUM_FE_FOR_RO);
+    let mut ro = E::RO::new(
+      ro_consts.clone(),
+      NUM_FE_WITHOUT_WIT_FOR_RO + 3 * U2.comm_W.len(),
+    );
 
     // append the digest of pp to the transcript
     ro.absorb(scalar_as_base::<E>(*pp_digest));
@@ -138,7 +144,10 @@ impl<E: Engine> NIFSRelaxed<E> {
     NovaError,
   > {
     // initialize a new RO
-    let mut ro = E::RO::new(ro_consts.clone(), NUM_FE_FOR_RO_RELAXED);
+    let mut ro = E::RO::new(
+      ro_consts.clone(),
+      NUM_FE_WITHOUT_WIT_FOR_RO_RELAXED + 6 * S.num_vars.len(),
+    );
 
     // append the digest of pp to the transcript
     ro.absorb(scalar_as_base::<E>(*pp_digest));
@@ -180,7 +189,10 @@ impl<E: Engine> NIFSRelaxed<E> {
     U2: &RelaxedR1CSInstance<E>,
   ) -> Result<RelaxedR1CSInstance<E>, NovaError> {
     // initialize a new RO
-    let mut ro = E::RO::new(ro_consts.clone(), NUM_FE_FOR_RO_RELAXED);
+    let mut ro = E::RO::new(
+      ro_consts.clone(),
+      NUM_FE_WITHOUT_WIT_FOR_RO_RELAXED + 3 * U1.comm_W.len() + 3 * U2.comm_W.len(),
+    );
 
     // append the digest of pp to the transcript
     ro.absorb(scalar_as_base::<E>(*pp_digest));
@@ -260,7 +272,7 @@ mod tests {
     // First create the shape
     let mut cs: TestShapeCS<E> = TestShapeCS::new();
     let _ = synthesize_tiny_r1cs_bellpepper(&mut cs, None);
-    let (shape, ck) = cs.r1cs_shape(&*default_ck_hint());
+    let (shape, ck) = cs.r1cs_shape(&*default_ck_hint(), false);
     let ro_consts =
       <<E as Engine>::RO as ROTrait<<E as Engine>::Base, <E as Engine>::Scalar>>::Constants::default();
 

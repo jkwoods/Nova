@@ -35,7 +35,7 @@ use crate::bellpepper::{
 use crate::digest::{DigestComputer, SimpleDigestible};
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 use circuit::{NovaAugmentedCircuit, NovaAugmentedCircuitInputs, NovaAugmentedCircuitParams};
-use constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS};
+use constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_FE_WITHOUT_IO_WIT_FOR_CRHF, NUM_HASH_BITS};
 use core::marker::PhantomData;
 use errors::NovaError;
 use ff::Field;
@@ -167,7 +167,7 @@ where
     );
     let mut cs: ShapeCS<E1> = ShapeCS::new();
     let _ = circuit_primary.synthesize(&mut cs);
-    let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape(ck_hint1);
+    let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape(ck_hint1, true);
 
     // Initialize ck for the secondary
     let circuit_secondary: NovaAugmentedCircuit<'_, E1, C2> = NovaAugmentedCircuit::new(
@@ -178,7 +178,7 @@ where
     );
     let mut cs: ShapeCS<E2> = ShapeCS::new();
     let _ = circuit_secondary.synthesize(&mut cs);
-    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape(ck_hint2);
+    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape(ck_hint2, true);
 
     if r1cs_shape_primary.num_io != 2 || r1cs_shape_secondary.num_io != 2 {
       return Err(NovaError::InvalidStepCircuitIO);
@@ -527,7 +527,9 @@ where
     let (hash_primary, hash_secondary) = {
       let mut hasher = <E2 as Engine>::RO::new(
         pp.ro_consts_secondary.clone(),
-        NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * pp.F_arity_primary,
+        NUM_FE_WITHOUT_IO_WIT_FOR_CRHF
+          + 2 * pp.F_arity_primary
+          + 3 * self.r_U_secondary.comm_W.len(),
       );
       hasher.absorb(pp.digest());
       hasher.absorb(E1::Scalar::from(num_steps as u64));
@@ -542,7 +544,9 @@ where
 
       let mut hasher2 = <E1 as Engine>::RO::new(
         pp.ro_consts_primary.clone(),
-        NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * pp.F_arity_secondary,
+        NUM_FE_WITHOUT_IO_WIT_FOR_CRHF
+          + 2 * pp.F_arity_secondary
+          + 3 * self.r_U_primary.comm_W.len(),
       );
       hasher2.absorb(scalar_as_base::<E1>(pp.digest()));
       hasher2.absorb(E2::Scalar::from(num_steps as u64));
@@ -896,7 +900,9 @@ where
     let (hash_primary, hash_secondary) = {
       let mut hasher = <E2 as Engine>::RO::new(
         vk.ro_consts_secondary.clone(),
-        NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * vk.F_arity_primary,
+        NUM_FE_WITHOUT_IO_WIT_FOR_CRHF
+          + 2 * vk.F_arity_primary
+          + 3 * self.r_U_secondary.comm_W.len(),
       );
       hasher.absorb(vk.pp_digest);
       hasher.absorb(E1::Scalar::from(num_steps as u64));
@@ -911,7 +917,9 @@ where
 
       let mut hasher2 = <E1 as Engine>::RO::new(
         vk.ro_consts_primary.clone(),
-        NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * vk.F_arity_secondary,
+        NUM_FE_WITHOUT_IO_WIT_FOR_CRHF
+          + 2 * vk.F_arity_secondary
+          + 3 * self.r_U_primary.comm_W.len(),
       );
       hasher2.absorb(scalar_as_base::<E1>(vk.pp_digest));
       hasher2.absorb(E2::Scalar::from(num_steps as u64));

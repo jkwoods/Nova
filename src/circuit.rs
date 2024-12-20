@@ -5,7 +5,7 @@
 //! Each circuit folds the last invocation of the other into the running instance
 
 use crate::{
-  constants::{NUM_FE_WITHOUT_IO_FOR_CRHF, NUM_HASH_BITS},
+  constants::{NUM_FE_WITHOUT_IO_WIT_FOR_CRHF, NUM_HASH_BITS},
   gadgets::{
     ecc::AllocatedPoint,
     r1cs::{AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance},
@@ -236,7 +236,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     // Check that u.x[0] = Hash(params, U, i, z0, zi)
     let mut ro = E::ROCircuit::new(
       self.ro_consts.clone(),
-      NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * arity,
+      NUM_FE_WITHOUT_IO_WIT_FOR_CRHF + 2 * arity + 3 * U.W.len(),
     );
     ro.absorb(params);
     ro.absorb(i);
@@ -356,7 +356,10 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     }
 
     // Compute the new hash H(params, Unew, i+1, z0, z_{i+1})
-    let mut ro = E::ROCircuit::new(self.ro_consts, NUM_FE_WITHOUT_IO_FOR_CRHF + 2 * arity);
+    let mut ro = E::ROCircuit::new(
+      self.ro_consts,
+      NUM_FE_WITHOUT_IO_WIT_FOR_CRHF + 2 * arity + 3 * Unew.W.len(),
+    );
     ro.absorb(&params);
     ro.absorb(&i_new);
     for e in &z_0 {
@@ -416,7 +419,7 @@ mod tests {
       NovaAugmentedCircuit::new(primary_params, None, &tc1, ro_consts1.clone());
     let mut cs: TestShapeCS<E1> = TestShapeCS::new();
     let _ = circuit1.synthesize(&mut cs);
-    let (shape1, ck1) = cs.r1cs_shape(&*default_ck_hint());
+    let (shape1, ck1) = cs.r1cs_shape(&*default_ck_hint(), true);
     assert_eq!(cs.num_constraints(), num_constraints_primary);
 
     let tc2 = TrivialCircuit::default();
@@ -425,7 +428,7 @@ mod tests {
       NovaAugmentedCircuit::new(secondary_params, None, &tc2, ro_consts2.clone());
     let mut cs: TestShapeCS<E2> = TestShapeCS::new();
     let _ = circuit2.synthesize(&mut cs);
-    let (shape2, ck2) = cs.r1cs_shape(&*default_ck_hint());
+    let (shape2, ck2) = cs.r1cs_shape(&*default_ck_hint(), true);
     assert_eq!(cs.num_constraints(), num_constraints_secondary);
 
     // Execute the base case for the primary
