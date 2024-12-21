@@ -698,7 +698,11 @@ impl<E: Engine> RelaxedR1CSWitness<E> {
   pub fn pad(&self, S: &R1CSShape<E>) -> RelaxedR1CSWitness<E> {
     let mut W = self.W.clone();
     if let Some(last) = W.last_mut() {
-      (*last).extend(vec![E::Scalar::ZERO; *S.num_vars.last().unwrap()]);
+      (*last).extend(vec![
+        E::Scalar::ZERO;
+        *S.num_vars.last().unwrap()
+          - self.W.last().unwrap().len()
+      ]);
     }
 
     let mut E = self.E.clone();

@@ -99,8 +99,7 @@ pub struct UnsplitProof<E: Engine, EE: EvaluationEngineTrait<E>> {
   comm_W: <E::CE as CommitmentEngineTrait<E>>::Commitment,
   big_ipa: EE::EvaluationArgument,
   big_eval: E::Scalar,
-  small_ipas: Vec<EE::EvaluationArgument>,
-  small_evals: Vec<E::Scalar>,
+  small: Vec<(E::Scalar, Option<EE::EvaluationArgument>)>,
 }
 
 impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK<E, EE> {
@@ -393,7 +392,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     // add claims about W and E polynomials
     let u_vec: Vec<PolyEvalInstance<E>> = vec![
       PolyEvalInstance {
-        c: U.comm_W[2],
+        c: U.comm_W[0],
         x: r_y[1..].to_vec(),
         e: self.eval_W,
       },
@@ -450,28 +449,35 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     }
 
     // prove IPAs
-    let mut small_ipas = Vec::new();
-    let mut small_evals = Vec::new();
+    let mut small = Vec::new();
     let mut big_r = Vec::new();
     let mut eval_sum = E::Scalar::ONE;
     for i in 0..W.W.len() {
       let small_r = vec![r[i]; W.W[i].len()];
-      let small_eval = MultilinearPolynomial::evaluate_with(&W.W[i], &small_r);
-      small_ipas.push(EE::prove(
-        ck,
-        &pk.pk_ee,
-        &mut transcript,
-        &U.comm_W[i],
-        &W.W[i],
-        &small_r,
-        &small_eval,
-      )?);
-      small_evals.push(small_eval);
-      eval_sum += small_eval;
+      let small_eval_ipa = if W.W[i].len() > 1 {
+        let small_eval = MultilinearPolynomial::new(W.W[i].clone()).evaluate(&small_r);
+        let small_ipa = EE::prove(
+          ck,
+          &pk.pk_ee,
+          &mut transcript,
+          &U.comm_W[i],
+          &W.W[i],
+          &small_r,
+          &small_eval,
+        )?;
+        eval_sum += small_eval;
+
+        (small_eval, Some(small_ipa))
+      } else {
+        (W.W[i][0] * r[i], None)
+      };
+
+      eval_sum += small_eval_ipa.0;
+      small.push(small_eval_ipa);
       big_r.extend(small_r);
     }
 
-    let big_eval = MultilinearPolynomial::evaluate_with(&wits, &big_r);
+    let big_eval = MultilinearPolynomial::new(wits.clone()).evaluate(&big_r);
     assert_eq!(big_eval, eval_sum);
     let big_ipa = EE::prove(
       ck,
@@ -500,8 +506,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
         comm_W,
         big_ipa,
         big_eval,
-        small_ipas,
-        small_evals,
+        small,
       },
     ))
   }
@@ -511,8 +516,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     p: &Self::UnsplitProof,
     U: &RelaxedR1CSInstance<E>,
   ) -> Result<RelaxedR1CSInstance<E>, NovaError> {
-    assert_eq!(p.small_ipas.len(), p.small_evals.len());
-    assert_eq!(U.comm_W.len(), p.small_evals.len());
+    assert_eq!(U.comm_W.len(), p.small.len());
 
     let mut transcript = <E as Engine>::TE::new(b"unsplit");
     transcript.absorb(b"W", &p.comm_W);
@@ -526,16 +530,19 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     // verify IPAs
     let mut big_r = Vec::new();
     let mut eval_sum = E::Scalar::ONE;
-    for (i, (ipa, eval)) in p.small_ipas.iter().zip(p.small_evals.iter()).enumerate() {
+    for (i, (eval, ipa)) in p.small.iter().enumerate() {
       let small_r = vec![r[i]; vk.S.num_vars[i]];
-      EE::verify(
-        &vk.vk_ee,
-        &mut transcript,
-        &U.comm_W[i],
-        &small_r,
-        &eval,
-        &ipa,
-      )?;
+      if ipa.is_some() {
+        EE::verify(
+          &vk.vk_ee,
+          &mut transcript,
+          &U.comm_W[i],
+          &small_r,
+          &eval,
+          ipa.as_ref().unwrap(),
+        )?;
+        eval_sum += eval;
+      };
       eval_sum += eval;
       big_r.extend(small_r);
     }

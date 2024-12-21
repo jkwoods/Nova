@@ -485,7 +485,8 @@ mod tests {
     let ro_consts2: ROConstantsCircuit<PallasEngine> = PoseidonConstantsCircuit::default();
 
     test_recursive_circuit_with::<PallasEngine, VestaEngine>(
-      &params1, &params2, ro_consts1, ro_consts2, 9817, 10349,
+      &params1, &params2, ro_consts1, ro_consts2, 13833,
+      14361, // 9817 -> 13833, 10349 -> 14361
     );
   }
 
@@ -497,7 +498,8 @@ mod tests {
     let ro_consts2: ROConstantsCircuit<Bn256EngineKZG> = PoseidonConstantsCircuit::default();
 
     test_recursive_circuit_with::<Bn256EngineKZG, GrumpkinEngine>(
-      &params1, &params2, ro_consts1, ro_consts2, 9985, 10538,
+      &params1, &params2, ro_consts1, ro_consts2, 14001,
+      14550, // 9985 -> 14001, 10538 -> 14550
     );
   }
 
@@ -509,7 +511,8 @@ mod tests {
     let ro_consts2: ROConstantsCircuit<Secp256k1Engine> = PoseidonConstantsCircuit::default();
 
     test_recursive_circuit_with::<Secp256k1Engine, Secq256k1Engine>(
-      &params1, &params2, ro_consts1, ro_consts2, 10264, 10961,
+      &params1, &params2, ro_consts1, ro_consts2, 14280,
+      14973, // 10264 -> 14280, 10961 -> 14973
     );
   }
 }

@@ -44,6 +44,7 @@ impl<Scalar: PrimeField> MultilinearPolynomial<Scalar> {
   pub fn new(Z: Vec<Scalar>) -> Self {
     let num_vars = Z.len().log_2();
     assert_eq!(Z.len(), 1 << num_vars);
+    assert!(num_vars > 0);
     MultilinearPolynomial { num_vars, Z }
   }
 
