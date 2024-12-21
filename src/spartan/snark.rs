@@ -7,6 +7,9 @@
 use crate::{
   digest::{DigestComputer, SimpleDigestible},
   errors::NovaError,
+  provider::ipa_pc::{
+    inner_product, InnerProductArgument, InnerProductInstance, InnerProductWitness,
+  },
   r1cs::{R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness, SparseMatrix},
   spartan::{
     compute_eval_table_sparse,
@@ -95,17 +98,17 @@ pub struct RelaxedR1CSSNARK<E: Engine, EE: EvaluationEngineTrait<E>> {
 /// A type that holds unsplitting proof information
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct UnsplitProof<E: Engine, EE: EvaluationEngineTrait<E>> {
+pub struct UnsplitProof<E: Engine> {
   comm_W: <E::CE as CommitmentEngineTrait<E>>::Commitment,
-  big_ipa: EE::EvaluationArgument,
+  big_ipa: InnerProductArgument<E>,
   big_eval: E::Scalar,
-  small: Vec<(E::Scalar, Option<EE::EvaluationArgument>)>,
+  small: Vec<(E::Scalar, Option<InnerProductArgument<E>>)>,
 }
 
 impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK<E, EE> {
   type ProverKey = ProverKey<E, EE>;
   type VerifierKey = VerifierKey<E, EE>;
-  type UnsplitProof = UnsplitProof<E, EE>;
+  type UnsplitProof = UnsplitProof<E>;
 
   fn setup(
     ck: &CommitmentKey<E>,
@@ -410,6 +413,11 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
       &self.evals_batch,
     )?;
 
+    println!(
+      "BATCHED size {:#?}",
+      (2_usize).pow(batched_u.x.len() as u32)
+    );
+
     // verify
     EE::verify(
       &vk.vk_ee,
@@ -455,16 +463,11 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     for i in 0..W.W.len() {
       let small_r = vec![r[i]; W.W[i].len()];
       let small_eval_ipa = if W.W[i].len() > 1 {
-        let small_eval = MultilinearPolynomial::new(W.W[i].clone()).evaluate(&small_r);
-        let small_ipa = EE::prove(
-          ck,
-          &pk.pk_ee,
-          &mut transcript,
-          &U.comm_W[i],
-          &W.W[i],
-          &small_r,
-          &small_eval,
-        )?;
+        let small_eval = inner_product(&U.comm_W[i], &small_r);
+        let u = InnerProductInstance::new(&U.comm_W[i], &small_r, small_eval);
+        let w = InnerProductWitness::new(&W.W[i]);
+        let small_ipa = InnerProductArgument::prove(ck, &pk.pk_ee, &u, &w, &mut transcript);
+
         eval_sum += small_eval;
 
         (small_eval, Some(small_ipa))
@@ -477,17 +480,11 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
       big_r.extend(small_r);
     }
 
-    let big_eval = MultilinearPolynomial::new(wits.clone()).evaluate(&big_r);
+    let big_eval = inner_product(&wits, &big_r);
     assert_eq!(big_eval, eval_sum);
-    let big_ipa = EE::prove(
-      ck,
-      &pk.pk_ee,
-      &mut transcript,
-      &comm_W,
-      &wits,
-      &big_r,
-      &big_eval,
-    )?;
+    let u = InnerProductInstance::new(&comm_W, &big_r, big_eval);
+    let w = InnerProductWitness::new(&wits);
+    let big_ipa = InnerProductArgument::prove(ck, &pk.pk_ee, &u, &w, &mut transcript);
 
     Ok((
       RelaxedR1CSInstance {
@@ -533,14 +530,15 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     for (i, (eval, ipa)) in p.small.iter().enumerate() {
       let small_r = vec![r[i]; vk.S.num_vars[i]];
       if ipa.is_some() {
-        EE::verify(
-          &vk.vk_ee,
+        let u = InnerProductInstance::new(&U.comm_W[i], &small_r, eval);
+        ipa.unwrap().verify(
+          &vk.vk_ee.ck_v,
+          &vk.vk_ee.ck_s,
+          small_r.len(),
+          &u,
           &mut transcript,
-          &U.comm_W[i],
-          &small_r,
-          &eval,
-          ipa.as_ref().unwrap(),
-        )?;
+        );
+
         eval_sum += eval;
       };
       eval_sum += eval;

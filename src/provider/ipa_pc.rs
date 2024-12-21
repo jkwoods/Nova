@@ -98,7 +98,7 @@ where
   }
 }
 
-fn inner_product<T: Field + Send + Sync>(a: &[T], b: &[T]) -> T {
+pub(crate) fn inner_product<T: Field + Send + Sync>(a: &[T], b: &[T]) -> T {
   assert_eq!(a.len(), b.len());
   (0..a.len())
     .into_par_iter()
@@ -108,7 +108,7 @@ fn inner_product<T: Field + Send + Sync>(a: &[T], b: &[T]) -> T {
 
 /// An inner product instance consists of a commitment to a vector `a` and another vector `b`
 /// and the claim that c = <a, b>.
-struct InnerProductInstance<E: Engine> {
+pub(crate) struct InnerProductInstance<E: Engine> {
   comm_a_vec: Commitment<E>,
   b_vec: Vec<E::Scalar>,
   c: E::Scalar,
@@ -139,12 +139,12 @@ impl<E: Engine> TranscriptReprTrait<E::GE> for InnerProductInstance<E> {
   }
 }
 
-struct InnerProductWitness<E: Engine> {
+pub(crate) struct InnerProductWitness<E: Engine> {
   a_vec: Vec<E::Scalar>,
 }
 
 impl<E: Engine> InnerProductWitness<E> {
-  fn new(a_vec: &[E::Scalar]) -> Self {
+  pub fn new(a_vec: &[E::Scalar]) -> Self {
     InnerProductWitness {
       a_vec: a_vec.to_vec(),
     }
