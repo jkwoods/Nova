@@ -4,6 +4,7 @@
 use crate::{
   errors::NovaError,
   traits::{commitment::CommitmentEngineTrait, Engine},
+  CommitmentKey, RelaxedR1CSInstance, RelaxedR1CSWitness,
 };
 use serde::{Deserialize, Serialize};
 
@@ -14,6 +15,9 @@ pub trait EvaluationEngineTrait<E: Engine>: Clone + Send + Sync {
 
   /// A type that holds the verifier key
   type VerifierKey: Clone + Send + Sync + Serialize + for<'de> Deserialize<'de>;
+
+  /// A type that represents the Unsplit Proof
+  type UnsplitProof: Send + Sync + Serialize + for<'de> Deserialize<'de>;
 
   /// A type that holds the evaluation argument
   type EvaluationArgument: Clone + Send + Sync + Serialize + for<'de> Deserialize<'de>;
@@ -43,4 +47,26 @@ pub trait EvaluationEngineTrait<E: Engine>: Clone + Send + Sync {
     eval: &E::Scalar,
     arg: &Self::EvaluationArgument,
   ) -> Result<(), NovaError>;
+
+  /// Proves unsplit witnesses
+  fn prove_unsplit_witnesses(
+    ck: &CommitmentKey<E>,
+    pk: &Self::ProverKey,
+    U: &RelaxedR1CSInstance<E>,
+    W: &RelaxedR1CSWitness<E>,
+  ) -> Result<
+    (
+      RelaxedR1CSInstance<E>,
+      RelaxedR1CSWitness<E>,
+      Self::UnsplitProof,
+    ),
+    NovaError,
+  >;
+
+  /// Verifies unsplit witnesses
+  fn verify_unsplit_witnesses(
+    vk: &Self::VerifierKey,
+    p: &Self::UnsplitProof,
+    U: &RelaxedR1CSInstance<E>,
+  ) -> Result<RelaxedR1CSInstance<E>, NovaError>;
 }

@@ -95,20 +95,9 @@ pub struct RelaxedR1CSSNARK<E: Engine, EE: EvaluationEngineTrait<E>> {
   eval_arg: EE::EvaluationArgument,
 }
 
-/// A type that holds unsplitting proof information
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(bound = "")]
-pub struct UnsplitProof<E: Engine> {
-  comm_W: <E::CE as CommitmentEngineTrait<E>>::Commitment,
-  big_ipa: InnerProductArgument<E>,
-  big_eval: E::Scalar,
-  small: Vec<(E::Scalar, Option<InnerProductArgument<E>>)>,
-}
-
 impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK<E, EE> {
   type ProverKey = ProverKey<E, EE>;
   type VerifierKey = VerifierKey<E, EE>;
-  type UnsplitProof = UnsplitProof<E>;
 
   fn setup(
     ck: &CommitmentKey<E>,
@@ -429,140 +418,6 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     )?;
 
     Ok(())
-  }
-
-  fn prove_unsplit_witnesses(
-    ck: &CommitmentKey<E>,
-    pk: &Self::ProverKey,
-    U: &RelaxedR1CSInstance<E>,
-    W: &RelaxedR1CSWitness<E>,
-  ) -> Result<
-    (
-      RelaxedR1CSInstance<E>,
-      RelaxedR1CSWitness<E>,
-      Self::UnsplitProof,
-    ),
-    NovaError,
-  > {
-    let wits: Vec<E::Scalar> = W.W.iter().flatten().cloned().collect();
-    let comm_W = CE::<E>::commit(ck, &wits, &E::Scalar::ZERO);
-
-    let mut transcript = <E as Engine>::TE::new(b"unsplit");
-    transcript.absorb(b"W", &comm_W);
-
-    // get rs from transcript
-    let mut r = Vec::new();
-    for _i in 0..W.W.len() {
-      r.push(transcript.squeeze(b"r")?);
-    }
-
-    // prove IPAs
-    let mut small = Vec::new();
-    let mut big_r = Vec::new();
-    let mut eval_sum = E::Scalar::ONE;
-    for i in 0..W.W.len() {
-      let small_r = vec![r[i]; W.W[i].len()];
-      let small_eval_ipa = if W.W[i].len() > 1 {
-        let small_eval = inner_product(&U.comm_W[i], &small_r);
-        let u = InnerProductInstance::new(&U.comm_W[i], &small_r, small_eval);
-        let w = InnerProductWitness::new(&W.W[i]);
-        let small_ipa = InnerProductArgument::prove(ck, &pk.pk_ee, &u, &w, &mut transcript);
-
-        eval_sum += small_eval;
-
-        (small_eval, Some(small_ipa))
-      } else {
-        (W.W[i][0] * r[i], None)
-      };
-
-      eval_sum += small_eval_ipa.0;
-      small.push(small_eval_ipa);
-      big_r.extend(small_r);
-    }
-
-    let big_eval = inner_product(&wits, &big_r);
-    assert_eq!(big_eval, eval_sum);
-    let u = InnerProductInstance::new(&comm_W, &big_r, big_eval);
-    let w = InnerProductWitness::new(&wits);
-    let big_ipa = InnerProductArgument::prove(ck, &pk.pk_ee, &u, &w, &mut transcript);
-
-    Ok((
-      RelaxedR1CSInstance {
-        comm_W: vec![comm_W],
-        comm_E: U.comm_E.clone(),
-        X: U.X.clone(),
-        u: U.u,
-      },
-      RelaxedR1CSWitness {
-        W: vec![wits],
-        r_W: vec![W.r_W.iter().sum()],
-        E: W.E.clone(),
-        r_E: W.r_E.clone(),
-      },
-      UnsplitProof {
-        comm_W,
-        big_ipa,
-        big_eval,
-        small,
-      },
-    ))
-  }
-
-  fn verify_unsplit_witnesses(
-    vk: &Self::VerifierKey,
-    p: &Self::UnsplitProof,
-    U: &RelaxedR1CSInstance<E>,
-  ) -> Result<RelaxedR1CSInstance<E>, NovaError> {
-    assert_eq!(U.comm_W.len(), p.small.len());
-
-    let mut transcript = <E as Engine>::TE::new(b"unsplit");
-    transcript.absorb(b"W", &p.comm_W);
-
-    // get rs from transcript
-    let mut r = Vec::new();
-    for _i in 0..U.comm_W.len() {
-      r.push(transcript.squeeze(b"r")?);
-    }
-
-    // verify IPAs
-    let mut big_r = Vec::new();
-    let mut eval_sum = E::Scalar::ONE;
-    for (i, (eval, ipa)) in p.small.iter().enumerate() {
-      let small_r = vec![r[i]; vk.S.num_vars[i]];
-      if ipa.is_some() {
-        let u = InnerProductInstance::new(&U.comm_W[i], &small_r, eval);
-        ipa.unwrap().verify(
-          &vk.vk_ee.ck_v,
-          &vk.vk_ee.ck_s,
-          small_r.len(),
-          &u,
-          &mut transcript,
-        );
-
-        eval_sum += eval;
-      };
-      eval_sum += eval;
-      big_r.extend(small_r);
-    }
-
-    EE::verify(
-      &vk.vk_ee,
-      &mut transcript,
-      &p.comm_W,
-      &big_r,
-      &p.big_eval,
-      &p.big_ipa,
-    )?;
-    if eval_sum != p.big_eval {
-      return Err(NovaError::UnsplitError);
-    }
-
-    Ok(RelaxedR1CSInstance {
-      comm_W: vec![p.comm_W],
-      comm_E: U.comm_E.clone(),
-      X: U.X.clone(),
-      u: U.u,
-    })
   }
 }
 

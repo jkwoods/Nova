@@ -213,6 +213,16 @@ where
     }
   }
 
+  fn split_key(ck: &Self::CommitmentKey, start: usize, end: usize) -> Self::CommitmentKey {
+    assert!(start < end);
+    assert!(end < ck.ck.len());
+
+    Self::CommitmentKey {
+      ck: ck[start..end],
+      h: None,
+    }
+  }
+
   fn commit(ck: &Self::CommitmentKey, v: &[E::Scalar], r: &E::Scalar) -> Self::Commitment {
     assert!(ck.ck.len() >= v.len());
 

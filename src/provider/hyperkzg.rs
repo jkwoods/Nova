@@ -14,7 +14,7 @@ use crate::{
     evaluation::EvaluationEngineTrait,
     AbsorbInROTrait, Engine, ROTrait, TranscriptEngineTrait, TranscriptReprTrait,
   },
-  zip_with,
+  zip_with, RelaxedR1CSInstance, RelaxedR1CSWitness,
 };
 use core::{
   marker::PhantomData,
@@ -327,6 +327,7 @@ where
   type EvaluationArgument = EvaluationArgument<E>;
   type ProverKey = ProverKey<E>;
   type VerifierKey = VerifierKey<E>;
+  type UnsplitProof = Default;
 
   fn setup(
     ck: &<E::CE as CommitmentEngineTrait<E>>::CommitmentKey,
@@ -643,6 +644,32 @@ where
     }
 
     Ok(())
+  }
+
+  /// Proves unsplit witnesses
+  fn prove_unsplit_witnesses(
+    ck: &CommitmentKey<E>,
+    pk: &Self::ProverKey,
+    U: &RelaxedR1CSInstance<E>,
+    W: &RelaxedR1CSWitness<E>,
+  ) -> Result<
+    (
+      RelaxedR1CSInstance<E>,
+      RelaxedR1CSWitness<E>,
+      Self::UnsplitProof,
+    ),
+    NovaError,
+  > {
+    unimplemented!();
+  }
+
+  /// Verifies unsplit witnesses
+  fn verify_unsplit_witnesses(
+    vk: &Self::VerifierKey,
+    p: &Self::UnsplitProof,
+    U: &RelaxedR1CSInstance<E>,
+  ) -> Result<RelaxedR1CSInstance<E>, NovaError> {
+    unimplemented!();
   }
 }
 

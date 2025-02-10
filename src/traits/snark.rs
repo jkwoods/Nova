@@ -27,9 +27,6 @@ pub trait RelaxedR1CSSNARKTrait<E: Engine>:
   /// A type that represents the verifier's key
   type VerifierKey: Send + Sync + Serialize + for<'de> Deserialize<'de> + DigestHelperTrait<E>;
 
-  /// A type that represents the Unsplit Proof
-  type UnsplitProof: Send + Sync + Serialize + for<'de> Deserialize<'de>;
-
   /// This associated function (not a method) provides a hint that offers
   /// a minimum sizing cue for the commitment key used by this SNARK
   /// implementation. The commitment key passed in setup should then
@@ -56,28 +53,6 @@ pub trait RelaxedR1CSSNARKTrait<E: Engine>:
 
   /// Verifies a SNARK for a relaxed R1CS
   fn verify(&self, vk: &Self::VerifierKey, U: &RelaxedR1CSInstance<E>) -> Result<(), NovaError>;
-
-  /// Proves unsplit witnesses
-  fn prove_unsplit_witnesses(
-    ck: &CommitmentKey<E>,
-    pk: &Self::ProverKey,
-    U: &RelaxedR1CSInstance<E>,
-    W: &RelaxedR1CSWitness<E>,
-  ) -> Result<
-    (
-      RelaxedR1CSInstance<E>,
-      RelaxedR1CSWitness<E>,
-      Self::UnsplitProof,
-    ),
-    NovaError,
-  >;
-
-  /// Verifies unsplit witnesses
-  fn verify_unsplit_witnesses(
-    vk: &Self::VerifierKey,
-    p: &Self::UnsplitProof,
-    U: &RelaxedR1CSInstance<E>,
-  ) -> Result<RelaxedR1CSInstance<E>, NovaError>;
 }
 
 /// A helper trait that defines the behavior of a verifier key of `zkSNARK`

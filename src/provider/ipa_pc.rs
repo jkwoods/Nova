@@ -7,7 +7,7 @@ use crate::{
     commitment::CommitmentEngineTrait, evaluation::EvaluationEngineTrait, Engine,
     TranscriptEngineTrait, TranscriptReprTrait,
   },
-  Commitment, CommitmentKey, CE,
+  Commitment, CommitmentKey, RelaxedR1CSInstance, RelaxedR1CSWitness, CE,
 };
 use core::iter;
 use ff::Field;
@@ -19,15 +19,25 @@ use std::marker::PhantomData;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct ProverKey<E: Engine> {
-  ck_s: CommitmentKey<E>,
+  pub ck_s: CommitmentKey<E>,
 }
 
 /// Provides an implementation of the verifier key
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct VerifierKey<E: Engine> {
-  ck_v: CommitmentKey<E>,
-  ck_s: CommitmentKey<E>,
+  pub ck_v: CommitmentKey<E>,
+  pub ck_s: CommitmentKey<E>,
+}
+
+/// A type that holds unsplitting proof information
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(bound = "")]
+pub struct UnsplitProof<E: Engine> {
+  comm_W: <E::CE as CommitmentEngineTrait<E>>::Commitment,
+  big_ipa: InnerProductArgument<E>,
+  big_eval: E::Scalar,
+  small: Vec<(E::Scalar, Option<InnerProductArgument<E>>)>,
 }
 
 /// Provides an implementation of a polynomial evaluation engine using IPA
@@ -45,6 +55,7 @@ where
   type ProverKey = ProverKey<E>;
   type VerifierKey = VerifierKey<E>;
   type EvaluationArgument = InnerProductArgument<E>;
+  type UnsplitProof = UnsplitProof<E>;
 
   fn setup(
     ck: &<<E as Engine>::CE as CommitmentEngineTrait<E>>::CommitmentKey,
@@ -75,6 +86,90 @@ where
     InnerProductArgument::prove(ck, &pk.ck_s, &u, &w, transcript)
   }
 
+  fn prove_unsplit_witnesses(
+    ck: &CommitmentKey<E>,
+    pk: &Self::ProverKey,
+    U: &RelaxedR1CSInstance<E>,
+    W: &RelaxedR1CSWitness<E>,
+  ) -> Result<
+    (
+      RelaxedR1CSInstance<E>,
+      RelaxedR1CSWitness<E>,
+      Self::UnsplitProof,
+    ),
+    NovaError,
+  > {
+    let wits: Vec<E::Scalar> = W.W.iter().flatten().cloned().collect();
+    let comm_W = CE::<E>::commit(ck, &wits, &E::Scalar::ZERO);
+
+    let mut transcript = <E as Engine>::TE::new(b"unsplit");
+    transcript.absorb(b"W", &comm_W);
+
+    // get rs from transcript
+    let mut r = Vec::new();
+    for _i in 0..W.W.len() {
+      r.push(transcript.squeeze(b"r")?);
+    }
+
+    // prove IPAs
+    let mut small = Vec::new();
+    let mut big_r = Vec::new();
+    let mut eval_sum = E::Scalar::ZERO;
+    let mut start = 0;
+
+    for i in 0..W.W.len() {
+      let end = start + W.W[i].len();
+      let small_r = vec![r[i]; W.W[i].len()];
+      let small_eval_ipa = if W.W[i].len() > 1 {
+        let small_eval = inner_product(&W.W[i], &small_r);
+        let u = InnerProductInstance::new(&U.comm_W[i], &small_r, &small_eval);
+        let w = InnerProductWitness::new(&W.W[i]);
+        let ck_small = E::CE::split_key(&ck, start, end);
+
+        let small_ipa =
+          InnerProductArgument::prove(&ck_small, &pk.pk_ee.ck_s, &u, &w, &mut transcript);
+
+        eval_sum += small_eval;
+
+        (small_eval, Some(small_ipa))
+      } else {
+        (W.W[i][0] * r[i], None)
+      };
+      start = end;
+
+      eval_sum += small_eval_ipa.0;
+      small.push(small_eval_ipa);
+      big_r.extend(small_r);
+    }
+
+    let big_eval = inner_product(&wits, &big_r);
+    assert_eq!(big_eval, eval_sum);
+    let u = InnerProductInstance::new(&comm_W, &big_r, &big_eval);
+    let w = InnerProductWitness::new(&wits);
+    let big_ipa = InnerProductArgument::prove(&ck, &pk.pk_ee.ck_s, &u, &w, &mut transcript);
+
+    Ok((
+      RelaxedR1CSInstance {
+        comm_W: vec![comm_W],
+        comm_E: U.comm_E.clone(),
+        X: U.X.clone(),
+        u: U.u,
+      },
+      RelaxedR1CSWitness {
+        W: vec![wits],
+        r_W: vec![W.r_W.iter().sum()],
+        E: W.E.clone(),
+        r_E: W.r_E.clone(),
+      },
+      UnsplitProof {
+        comm_W,
+        big_ipa,
+        big_eval,
+        small,
+      },
+    ))
+  }
+
   /// A method to verify purported evaluations of a batch of polynomials
   fn verify(
     vk: &Self::VerifierKey,
@@ -95,6 +190,69 @@ where
     )?;
 
     Ok(())
+  }
+
+  fn verify_unsplit_witnesses(
+    vk: &Self::VerifierKey,
+    p: &Self::UnsplitProof,
+    U: &RelaxedR1CSInstance<E>,
+  ) -> Result<RelaxedR1CSInstance<E>, NovaError> {
+    assert_eq!(U.comm_W.len(), p.small.len());
+
+    let mut transcript = <E as Engine>::TE::new(b"unsplit");
+    transcript.absorb(b"W", &p.comm_W);
+
+    // get rs from transcript
+    let mut r = Vec::new();
+    for _i in 0..U.comm_W.len() {
+      r.push(transcript.squeeze(b"r")?);
+    }
+
+    // verify IPAs
+    let mut big_r = Vec::new();
+    let mut eval_sum = E::Scalar::ZERO;
+    let mut start = 0;
+    for (i, (eval, ipa)) in p.small.iter().enumerate() {
+      let end = start + vk.S.num_vars[i];
+      let small_r = vec![r[i]; vk.S.num_vars[i]];
+      if ipa.is_some() {
+        let u = InnerProductInstance::new(&U.comm_W[i], &small_r, eval);
+        let ck_small = E::CE::split_key(&ck, start, end);
+
+        ipa.unwrap().verify(
+          &ck_small,
+          &vk.vk_ee.ck_s,
+          small_r.len(),
+          &u,
+          &mut transcript,
+        );
+
+        eval_sum += eval;
+      };
+      eval_sum += eval;
+      big_r.extend(small_r);
+      start = end;
+    }
+
+    let u = InnerProductInstance::new(&p.comm_W, &big_r, &p.big_eval);
+    p.big_ipa.verify(
+      &vk.vk_ee.ck_v,
+      &vk.vk_ee.ck_s,
+      big_r.len(),
+      &u,
+      &mut transcript,
+    )?;
+
+    if eval_sum != p.big_eval {
+      return Err(NovaError::UnsplitError);
+    }
+
+    Ok(RelaxedR1CSInstance {
+      comm_W: vec![p.comm_W],
+      comm_E: U.comm_E.clone(),
+      X: U.X.clone(),
+      u: U.u,
+    })
   }
 }
 
@@ -170,7 +328,7 @@ where
     b"IPA"
   }
 
-  fn prove(
+  pub fn prove(
     ck: &CommitmentKey<E>,
     ck_c: &CommitmentKey<E>,
     U: &InnerProductInstance<E>,
@@ -282,7 +440,7 @@ where
     })
   }
 
-  fn verify(
+  pub fn verify(
     &self,
     ck: &CommitmentKey<E>,
     ck_c: &CommitmentKey<E>,
