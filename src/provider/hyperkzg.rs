@@ -14,7 +14,7 @@ use crate::{
     evaluation::EvaluationEngineTrait,
     AbsorbInROTrait, Engine, ROTrait, TranscriptEngineTrait, TranscriptReprTrait,
   },
-  zip_with, RelaxedR1CSInstance, RelaxedR1CSWitness,
+  zip_with, R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness,
 };
 use core::{
   marker::PhantomData,
@@ -215,6 +215,10 @@ where
     Self::DerandKey { h: ck.h.clone() }
   }
 
+  fn split_key(ck: &Self::CommitmentKey, start: usize, end: usize) -> Self::CommitmentKey {
+    unimplemented!();
+  }
+
   fn commit(ck: &Self::CommitmentKey, v: &[E::Scalar], r: &E::Scalar) -> Self::Commitment {
     assert!(ck.ck.len() >= v.len());
 
@@ -256,6 +260,13 @@ where
   G: G1Affine<E>,
   H: G2Affine<E>,
   tau_H: G2Affine<E>,
+}
+
+/// A type that holds unsplitting proof information
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(bound = "")]
+pub struct UnsplitProof<E: Engine> {
+  _p: PhantomData<E>,
 }
 
 /// Provides an implementation of a polynomial evaluation argument
@@ -327,7 +338,7 @@ where
   type EvaluationArgument = EvaluationArgument<E>;
   type ProverKey = ProverKey<E>;
   type VerifierKey = VerifierKey<E>;
-  type UnsplitProof = Default;
+  type UnsplitProof = UnsplitProof<E>;
 
   fn setup(
     ck: &<E::CE as CommitmentEngineTrait<E>>::CommitmentKey,
@@ -668,6 +679,7 @@ where
     vk: &Self::VerifierKey,
     p: &Self::UnsplitProof,
     U: &RelaxedR1CSInstance<E>,
+    S: &R1CSShape<E>,
   ) -> Result<RelaxedR1CSInstance<E>, NovaError> {
     unimplemented!();
   }

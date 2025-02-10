@@ -4,7 +4,7 @@
 use crate::{
   errors::NovaError,
   traits::{commitment::CommitmentEngineTrait, Engine},
-  CommitmentKey, RelaxedR1CSInstance, RelaxedR1CSWitness,
+  CommitmentKey, R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness,
 };
 use serde::{Deserialize, Serialize};
 
@@ -68,5 +68,6 @@ pub trait EvaluationEngineTrait<E: Engine>: Clone + Send + Sync {
     vk: &Self::VerifierKey,
     p: &Self::UnsplitProof,
     U: &RelaxedR1CSInstance<E>,
+    S: &R1CSShape<E>,
   ) -> Result<RelaxedR1CSInstance<E>, NovaError>;
 }

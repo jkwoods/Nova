@@ -7,7 +7,7 @@ use crate::{
     commitment::CommitmentEngineTrait, evaluation::EvaluationEngineTrait, Engine,
     TranscriptEngineTrait, TranscriptReprTrait,
   },
-  Commitment, CommitmentKey, RelaxedR1CSInstance, RelaxedR1CSWitness, CE,
+  Commitment, CommitmentKey, R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness, CE,
 };
 use core::iter;
 use ff::Field;
@@ -19,15 +19,15 @@ use std::marker::PhantomData;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct ProverKey<E: Engine> {
-  pub ck_s: CommitmentKey<E>,
+  ck_s: CommitmentKey<E>,
 }
 
 /// Provides an implementation of the verifier key
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct VerifierKey<E: Engine> {
-  pub ck_v: CommitmentKey<E>,
-  pub ck_s: CommitmentKey<E>,
+  ck_v: CommitmentKey<E>,
+  ck_s: CommitmentKey<E>,
 }
 
 /// A type that holds unsplitting proof information
@@ -126,8 +126,7 @@ where
         let w = InnerProductWitness::new(&W.W[i]);
         let ck_small = E::CE::split_key(&ck, start, end);
 
-        let small_ipa =
-          InnerProductArgument::prove(&ck_small, &pk.pk_ee.ck_s, &u, &w, &mut transcript);
+        let small_ipa = InnerProductArgument::prove(&ck_small, &pk.ck_s, &u, &w, &mut transcript)?;
 
         eval_sum += small_eval;
 
@@ -146,7 +145,7 @@ where
     assert_eq!(big_eval, eval_sum);
     let u = InnerProductInstance::new(&comm_W, &big_r, &big_eval);
     let w = InnerProductWitness::new(&wits);
-    let big_ipa = InnerProductArgument::prove(&ck, &pk.pk_ee.ck_s, &u, &w, &mut transcript);
+    let big_ipa = InnerProductArgument::prove(ck, &pk.ck_s, &u, &w, &mut transcript)?;
 
     Ok((
       RelaxedR1CSInstance {
@@ -196,6 +195,7 @@ where
     vk: &Self::VerifierKey,
     p: &Self::UnsplitProof,
     U: &RelaxedR1CSInstance<E>,
+    S: &R1CSShape<E>,
   ) -> Result<RelaxedR1CSInstance<E>, NovaError> {
     assert_eq!(U.comm_W.len(), p.small.len());
 
@@ -213,19 +213,16 @@ where
     let mut eval_sum = E::Scalar::ZERO;
     let mut start = 0;
     for (i, (eval, ipa)) in p.small.iter().enumerate() {
-      let end = start + vk.S.num_vars[i];
-      let small_r = vec![r[i]; vk.S.num_vars[i]];
+      let end = start + S.num_vars[i];
+      let small_r = vec![r[i]; S.num_vars[i]];
       if ipa.is_some() {
         let u = InnerProductInstance::new(&U.comm_W[i], &small_r, eval);
-        let ck_small = E::CE::split_key(&ck, start, end);
+        let ck_small = E::CE::split_key(&vk.ck_v, start, end);
 
-        ipa.unwrap().verify(
-          &ck_small,
-          &vk.vk_ee.ck_s,
-          small_r.len(),
-          &u,
-          &mut transcript,
-        );
+        ipa
+          .as_ref()
+          .unwrap()
+          .verify(&ck_small, &vk.ck_s, small_r.len(), &u, &mut transcript)?;
 
         eval_sum += eval;
       };
@@ -235,13 +232,8 @@ where
     }
 
     let u = InnerProductInstance::new(&p.comm_W, &big_r, &p.big_eval);
-    p.big_ipa.verify(
-      &vk.vk_ee.ck_v,
-      &vk.vk_ee.ck_s,
-      big_r.len(),
-      &u,
-      &mut transcript,
-    )?;
+    p.big_ipa
+      .verify(&vk.ck_v, &vk.ck_s, big_r.len(), &u, &mut transcript)?;
 
     if eval_sum != p.big_eval {
       return Err(NovaError::UnsplitError);
@@ -328,7 +320,7 @@ where
     b"IPA"
   }
 
-  pub fn prove(
+  fn prove(
     ck: &CommitmentKey<E>,
     ck_c: &CommitmentKey<E>,
     U: &InnerProductInstance<E>,
@@ -440,7 +432,7 @@ where
     })
   }
 
-  pub fn verify(
+  fn verify(
     &self,
     ck: &CommitmentKey<E>,
     ck_c: &CommitmentKey<E>,

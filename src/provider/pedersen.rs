@@ -218,7 +218,7 @@ where
     assert!(end < ck.ck.len());
 
     Self::CommitmentKey {
-      ck: ck[start..end],
+      ck: ck.ck[start..end].to_vec(),
       h: None,
     }
   }

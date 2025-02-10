@@ -98,6 +98,7 @@ pub struct RelaxedR1CSSNARK<E: Engine, EE: EvaluationEngineTrait<E>> {
 impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK<E, EE> {
   type ProverKey = ProverKey<E, EE>;
   type VerifierKey = VerifierKey<E, EE>;
+  type UnsplitProof = EE::UnsplitProof;
 
   fn setup(
     ck: &CommitmentKey<E>,
@@ -418,6 +419,30 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     )?;
 
     Ok(())
+  }
+
+  fn prove_unsplit_witnesses(
+    ck: &CommitmentKey<E>,
+    pk: &Self::ProverKey,
+    U: &RelaxedR1CSInstance<E>,
+    W: &RelaxedR1CSWitness<E>,
+  ) -> Result<
+    (
+      RelaxedR1CSInstance<E>,
+      RelaxedR1CSWitness<E>,
+      Self::UnsplitProof,
+    ),
+    NovaError,
+  > {
+    EE::prove_unsplit_witnesses(ck, &pk.pk_ee, U, W)
+  }
+
+  fn verify_unsplit_witnesses(
+    vk: &Self::VerifierKey,
+    p: &Self::UnsplitProof,
+    U: &RelaxedR1CSInstance<E>,
+  ) -> Result<RelaxedR1CSInstance<E>, NovaError> {
+    EE::verify_unsplit_witnesses(&vk.vk_ee, p, U, &vk.S)
   }
 }
 

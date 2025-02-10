@@ -231,6 +231,7 @@ fn main() {
       &circuit_secondary,
       &*S1::ck_floor(),
       &*S2::ck_floor(),
+      2,
     )
     .unwrap();
     println!("PublicParams::setup, took {:?} ", start.elapsed());
