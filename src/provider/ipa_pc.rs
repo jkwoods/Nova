@@ -37,7 +37,7 @@ pub struct UnsplitProof<E: Engine> {
   comm_W: <E::CE as CommitmentEngineTrait<E>>::Commitment,
   big_ipa: InnerProductArgument<E>,
   big_eval: E::Scalar,
-  small: Vec<(E::Scalar, Option<InnerProductArgument<E>>)>,
+  small: Vec<(E::Scalar, InnerProductArgument<E>)>,
 }
 
 /// Provides an implementation of a polynomial evaluation engine using IPA
@@ -100,6 +100,7 @@ where
     NovaError,
   > {
     let wits: Vec<E::Scalar> = W.W.iter().flatten().cloned().collect();
+    println!("WITS BIG LEN {:#?}", wits.len());
     let comm_W = CE::<E>::commit(ck, &wits, &E::Scalar::ZERO);
 
     let mut transcript = <E as Engine>::TE::new(b"unsplit");
@@ -119,26 +120,34 @@ where
 
     for i in 0..W.W.len() {
       let end = start + W.W[i].len();
-      let small_r = vec![r[i]; W.W[i].len()];
-      let small_eval_ipa = if W.W[i].len() > 1 {
-        let small_eval = inner_product(&W.W[i], &small_r);
-        let u = InnerProductInstance::new(&U.comm_W[i], &small_r, &small_eval);
-        let w = InnerProductWitness::new(&W.W[i]);
-        let ck_small = E::CE::split_key(&ck, start, end);
 
-        let small_ipa = InnerProductArgument::prove(&ck_small, &pk.ck_s, &u, &w, &mut transcript)?;
+      let mut padded_wit = W.W[i].clone();
+      padded_wit.extend(vec![
+        E::Scalar::ZERO;
+        W.W[i].len().next_power_of_two() - W.W[i].len()
+      ]);
+      let small_r = vec![r[i]; padded_wit.len()];
 
-        eval_sum += small_eval;
+      let small_eval = inner_product(&padded_wit, &small_r);
+      let u = InnerProductInstance::new(&U.comm_W[i], &small_r, &small_eval);
+      let w = InnerProductWitness::new(&padded_wit);
+      let ck_small = E::CE::split_key(&ck, start, end);
 
-        (small_eval, Some(small_ipa))
-      } else {
-        (W.W[i][0] * r[i], None)
-      };
+      use crate::traits::commitment::Len;
+      println!(
+        "PROVING small r: {:#?}, w: {:#?}, ck_small: {:#?}",
+        small_r.len(),
+        padded_wit.len(),
+        ck_small.length()
+      );
+      let small_ipa = InnerProductArgument::prove(&ck_small, &pk.ck_s, &u, &w, &mut transcript)?;
+
+      eval_sum += small_eval;
+
       start = end;
 
-      eval_sum += small_eval_ipa.0;
-      small.push(small_eval_ipa);
-      big_r.extend(small_r);
+      small.push((small_eval, small_ipa));
+      big_r.extend(vec![r[i]; W.W[i].len()]);
     }
 
     let big_eval = inner_product(&wits, &big_r);
@@ -213,21 +222,15 @@ where
     let mut eval_sum = E::Scalar::ZERO;
     let mut start = 0;
     for (i, (eval, ipa)) in p.small.iter().enumerate() {
-      let end = start + S.num_vars[i];
-      let small_r = vec![r[i]; S.num_vars[i]];
-      if ipa.is_some() {
-        let u = InnerProductInstance::new(&U.comm_W[i], &small_r, eval);
-        let ck_small = E::CE::split_key(&vk.ck_v, start, end);
+      let end = start + S.num_split_vars[i];
+      let small_r = vec![r[i]; S.num_split_vars[i].next_power_of_two()];
+      let u = InnerProductInstance::new(&U.comm_W[i], &small_r, eval);
+      let ck_small = E::CE::split_key(&vk.ck_v, start, end);
 
-        ipa
-          .as_ref()
-          .unwrap()
-          .verify(&ck_small, &vk.ck_s, small_r.len(), &u, &mut transcript)?;
+      ipa.verify(&ck_small, &vk.ck_s, small_r.len(), &u, &mut transcript)?;
 
-        eval_sum += eval;
-      };
       eval_sum += eval;
-      big_r.extend(small_r);
+      big_r.extend(vec![r[i]; S.num_split_vars[i]]);
       start = end;
     }
 

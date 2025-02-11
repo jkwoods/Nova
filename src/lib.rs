@@ -179,7 +179,7 @@ where
     );
     let mut cs: ShapeCS<E2> = ShapeCS::new();
     let _ = circuit_secondary.synthesize(&mut cs);
-    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape(ck_hint2, true, ram_batch_size);
+    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape(ck_hint2, false, 0);
 
     if r1cs_shape_primary.num_io != 2 || r1cs_shape_secondary.num_io != 2 {
       return Err(NovaError::InvalidStepCircuitIO);
@@ -226,10 +226,10 @@ where
   }
 
   /// Returns the number of variables in the primary and secondary circuits
-  pub fn num_variables(&self) -> (Vec<usize>, Vec<usize>) {
+  pub fn num_variables(&self) -> (usize, usize) {
     (
-      self.r1cs_shape_primary.num_vars.clone(),
-      self.r1cs_shape_secondary.num_vars.clone(),
+      self.r1cs_shape_primary.num_vars,
+      self.r1cs_shape_secondary.num_vars,
     )
   }
 }
@@ -687,7 +687,6 @@ where
   err_blind_r_Wn_primary: E1::Scalar,
   wit_blind_r_Wn_secondary: Vec<E2::Scalar>,
   err_blind_r_Wn_secondary: E2::Scalar,
-  unsplit_proof_r_Un_primary: S1::UnsplitProof,
 
   snark_primary: S1,
   snark_secondary: S2,
@@ -811,16 +810,7 @@ where
       &err_blind_r_Wn_secondary,
     );
 
-    // usplit primary
-    let (unsplit_r_Un_primary, unsplit_r_Wn_primary, unsplit_proof_r_Un_primary) =
-      S1::prove_unsplit_witnesses(
-        &pp.ck_primary,
-        &pk.pk_primary,
-        &derandom_r_Un_primary,
-        &derandom_r_Wn_primary,
-      )?;
-
-    assert!(pp.r1cs_shape_primary.is_regular_shape() && pp.r1cs_shape_secondary.is_regular_shape());
+    // assert!(pp.r1cs_shape_primary.is_regular_shape() && pp.r1cs_shape_secondary.is_regular_shape());
 
     // create SNARKs proving the knowledge of Wn primary/secondary
     let (snark_primary, snark_secondary) = rayon::join(
@@ -829,8 +819,8 @@ where
           &pp.ck_primary,
           &pk.pk_primary,
           &pp.r1cs_shape_primary,
-          &unsplit_r_Un_primary,
-          &unsplit_r_Wn_primary,
+          &derandom_r_Un_primary,
+          &derandom_r_Wn_primary,
         )
       },
       || {
@@ -862,7 +852,6 @@ where
       err_blind_r_Wn_primary,
       wit_blind_r_Wn_secondary,
       err_blind_r_Wn_secondary,
-      unsplit_proof_r_Un_primary,
 
       snark_primary: snark_primary?,
       snark_secondary: snark_secondary?,
@@ -981,21 +970,13 @@ where
       &self.err_blind_r_Wn_secondary,
     );
 
-    // unsplit primary
-
-    let unsplit_r_Un_primary = S1::verify_unsplit_witnesses(
-      &vk.vk_primary,
-      &self.unsplit_proof_r_Un_primary,
-      &derandom_r_Un_primary,
-    )?;
-
     // check the satisfiability of the folded instances using
     // SNARKs proving the knowledge of their satisfying witnesses
     let (res_primary, res_secondary) = rayon::join(
       || {
         self
           .snark_primary
-          .verify(&vk.vk_primary, &unsplit_r_Un_primary)
+          .verify(&vk.vk_primary, &derandom_r_Un_primary)
       },
       || {
         self

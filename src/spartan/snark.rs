@@ -93,6 +93,7 @@ pub struct RelaxedR1CSSNARK<E: Engine, EE: EvaluationEngineTrait<E>> {
   sc_proof_batch: SumcheckProof<E>,
   evals_batch: Vec<E::Scalar>,
   eval_arg: EE::EvaluationArgument,
+  unsplit_proof: Option<EE::UnsplitProof>,
 }
 
 impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for RelaxedR1CSSNARK<E, EE> {
@@ -130,21 +131,38 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     let S = S.pad();
     // sanity check that R1CSShape has all required size characteristics
     assert!(S.is_regular_shape());
-    assert_eq!(W.W.len(), 1);
 
     let W = W.pad(&S); // pad the witness
+
+    println!(
+      "PROVING SHAPE {:#?}, {:#?}, WIT {:#?}",
+      S.num_vars,
+      S.num_split_vars.clone(),
+      W.W.len()
+    );
+
+    // unsplit
+    let (U, W, unsplit_proof) = if S.num_split_vars.len() > 1 {
+      let (U, W, p) = Self::prove_unsplit_witnesses(ck, pk, U, &W)?;
+      (U, W, Some(p))
+    } else {
+      (U.clone(), W, None)
+    };
+
+    assert_eq!(W.W.len(), 1);
+
     let mut transcript = E::TE::new(b"RelaxedR1CSSNARK");
 
     // append the digest of vk (which includes R1CS matrices) and the RelaxedR1CSInstance to the transcript
     transcript.absorb(b"vk", &pk.vk_digest);
-    transcript.absorb(b"U", U);
+    transcript.absorb(b"U", &U);
 
     // compute the full satisfying assignment by concatenating W.W, U.u, and U.X
     let mut z = [W.W[0].clone(), vec![U.u], U.X.clone()].concat();
 
     let (num_rounds_x, num_rounds_y) = (
       usize::try_from(S.num_cons.ilog2()).unwrap(),
-      (usize::try_from(S.num_vars[0].ilog2()).unwrap() + 1),
+      (usize::try_from(S.num_vars.ilog2()).unwrap() + 1),
     );
 
     // outer sum-check
@@ -211,7 +229,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     };
 
     let poly_z = {
-      z.resize(S.num_vars[0] * 2, E::Scalar::ZERO);
+      z.resize(S.num_vars * 2, E::Scalar::ZERO);
       z
     };
 
@@ -277,20 +295,28 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
       sc_proof_batch,
       evals_batch: claims_batch_left,
       eval_arg,
+      unsplit_proof,
     })
   }
 
   /// verifies a proof of satisfiability of a `RelaxedR1CS` instance
   fn verify(&self, vk: &Self::VerifierKey, U: &RelaxedR1CSInstance<E>) -> Result<(), NovaError> {
+    // unsplit
+    let U = if (vk.S.num_split_vars.len() > 1) {
+      Self::verify_unsplit_witnesses(vk, self.unsplit_proof.as_ref().unwrap(), U)?
+    } else {
+      U.clone()
+    };
+
     let mut transcript = E::TE::new(b"RelaxedR1CSSNARK");
 
     // append the digest of R1CS matrices and the RelaxedR1CSInstance to the transcript
     transcript.absorb(b"vk", &vk.digest());
-    transcript.absorb(b"U", U);
+    transcript.absorb(b"U", &U);
 
     let (num_rounds_x, num_rounds_y) = (
       usize::try_from(vk.S.num_cons.ilog2()).unwrap(),
-      (usize::try_from(vk.S.num_vars[0].ilog2()).unwrap() + 1),
+      (usize::try_from(vk.S.num_vars.ilog2()).unwrap() + 1),
     );
 
     // outer sum-check
@@ -341,7 +367,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
           .into_iter()
           .chain(U.X.iter().cloned())
           .collect::<Vec<E::Scalar>>();
-        SparsePolynomial::new(vk.S.num_vars[0].log_2(), X).evaluate(&r_y[1..])
+        SparsePolynomial::new(vk.S.num_vars.log_2(), X).evaluate(&r_y[1..])
       };
       (E::Scalar::ONE - r_y[0]) * self.eval_W + r_y[0] * eval_X
     };

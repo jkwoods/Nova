@@ -50,7 +50,7 @@ impl<E: Engine> NIFS<E> {
     // initialize a new RO
     let mut ro = E::RO::new(
       ro_consts.clone(),
-      NUM_FE_WITHOUT_WIT_FOR_RO + 3 * S.num_vars.len(),
+      NUM_FE_WITHOUT_WIT_FOR_RO + 3 * S.num_split_vars.len(),
     );
 
     // append the digest of pp to the transcript
@@ -146,7 +146,7 @@ impl<E: Engine> NIFSRelaxed<E> {
     // initialize a new RO
     let mut ro = E::RO::new(
       ro_consts.clone(),
-      NUM_FE_WITHOUT_WIT_FOR_RO_RELAXED + 6 * S.num_vars.len(),
+      NUM_FE_WITHOUT_WIT_FOR_RO_RELAXED + 6 * S.num_split_vars.len(),
     );
 
     // append the digest of pp to the transcript

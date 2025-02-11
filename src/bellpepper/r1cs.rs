@@ -42,10 +42,16 @@ impl<E: Engine> NovaWitness<E> for SatisfyingAssignment<E> {
     ck: &CommitmentKey<E>,
   ) -> Result<(R1CSInstance<E>, R1CSWitness<E>), NovaError> {
     let long_wit = self.aux_assignment();
+    println!(
+      "LONG WIT {:#}, SPLITS {:#?}",
+      long_wit.len(),
+      shape.num_split_vars.clone()
+    );
+
     let mut div_wit = Vec::new();
     let mut start = 0;
     let mut end = 0;
-    for v in &shape.num_vars {
+    for v in &shape.num_split_vars {
       start = end;
       end += v;
       div_wit.push(&long_wit[start..end]);

@@ -33,7 +33,8 @@ pub struct R1CS<E: Engine> {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct R1CSShape<E: Engine> {
   pub(crate) num_cons: usize,
-  pub(crate) num_vars: Vec<usize>,
+  pub(crate) num_split_vars: Vec<usize>,
+  pub(crate) num_vars: usize,
   pub(crate) num_io: usize,
   pub(crate) A: SparseMatrix<E::Scalar>,
   pub(crate) B: SparseMatrix<E::Scalar>,
@@ -94,9 +95,9 @@ impl<E: Engine> R1CS<E> {
   ///
   pub fn commitment_key(S: &R1CSShape<E>, ck_floor: &CommitmentKeyHint<E>) -> CommitmentKey<E> {
     let num_cons = S.num_cons;
-    let num_vars = &S.num_vars;
+    let num_vars = S.num_vars;
     let ck_hint = ck_floor(S);
-    E::CE::setup(b"ck", max(max(num_cons, num_vars.iter().sum()), ck_hint))
+    E::CE::setup(b"ck", max(max(num_cons, num_vars), ck_hint))
   }
 }
 
@@ -104,20 +105,22 @@ impl<E: Engine> R1CSShape<E> {
   /// Create an object of type `R1CSShape` from the explicitly specified R1CS matrices
   pub fn new(
     num_cons: usize,
-    num_vars: Vec<usize>,
+    num_split_vars: Vec<usize>,
     num_io: usize,
     A: SparseMatrix<E::Scalar>,
     B: SparseMatrix<E::Scalar>,
     C: SparseMatrix<E::Scalar>,
   ) -> Result<R1CSShape<E>, NovaError> {
+    let num_vars = num_split_vars.iter().sum();
+
     let is_valid = |num_cons: usize,
-                    num_vars: &Vec<usize>,
+                    num_vars: usize,
                     num_io: usize,
                     M: &SparseMatrix<E::Scalar>|
      -> Result<Vec<()>, NovaError> {
       M.iter()
         .map(|(row, col, _val)| {
-          if row >= num_cons || col > num_io + num_vars.iter().sum::<usize>() {
+          if row >= num_cons || col > num_io + num_vars {
             Err(NovaError::InvalidIndex)
           } else {
             Ok(())
@@ -126,12 +129,13 @@ impl<E: Engine> R1CSShape<E> {
         .collect::<Result<Vec<()>, NovaError>>()
     };
 
-    is_valid(num_cons, &num_vars, num_io, &A)?;
-    is_valid(num_cons, &num_vars, num_io, &B)?;
-    is_valid(num_cons, &num_vars, num_io, &C)?;
+    is_valid(num_cons, num_vars, num_io, &A)?;
+    is_valid(num_cons, num_vars, num_io, &B)?;
+    is_valid(num_cons, num_vars, num_io, &C)?;
 
     Ok(R1CSShape {
       num_cons,
+      num_split_vars,
       num_vars,
       num_io,
       A,
@@ -155,9 +159,9 @@ impl<E: Engine> R1CSShape<E> {
   #[inline]
   pub(crate) fn is_regular_shape(&self) -> bool {
     let cons_valid = self.num_cons.next_power_of_two() == self.num_cons;
-    let vars_valid = self.num_vars[0].next_power_of_two() == self.num_vars[0];
-    let vars_flat = self.num_vars.len() == 1;
-    let io_lt_vars = self.num_io < self.num_vars.iter().sum();
+    let vars_valid = self.num_vars.next_power_of_two() == self.num_vars;
+    let vars_flat = self.num_split_vars.len() == 1;
+    let io_lt_vars = self.num_io < self.num_vars;
     cons_valid && vars_valid && vars_flat && io_lt_vars
   }
 
@@ -165,7 +169,7 @@ impl<E: Engine> R1CSShape<E> {
     &self,
     z: &[E::Scalar],
   ) -> Result<(Vec<E::Scalar>, Vec<E::Scalar>, Vec<E::Scalar>), NovaError> {
-    if z.len() != self.num_io + self.num_vars.iter().sum::<usize>() + 1 {
+    if z.len() != self.num_io + self.num_vars + 1 {
       return Err(NovaError::InvalidWitnessLength);
     }
 
@@ -184,7 +188,7 @@ impl<E: Engine> R1CSShape<E> {
     U: &RelaxedR1CSInstance<E>,
     W: &RelaxedR1CSWitness<E>,
   ) -> Result<(), NovaError> {
-    for (w_vec, size) in W.W.iter().zip(self.num_vars.iter()) {
+    for (w_vec, size) in W.W.iter().zip(self.num_split_vars.iter()) {
       assert_eq!(w_vec.len(), *size);
     }
     assert_eq!(W.E.len(), self.num_cons);
@@ -239,10 +243,11 @@ impl<E: Engine> R1CSShape<E> {
     U: &R1CSInstance<E>,
     W: &R1CSWitness<E>,
   ) -> Result<(), NovaError> {
-    for (w_vec, size) in W.W.iter().zip(self.num_vars.iter()) {
+    for (w_vec, size) in W.W.iter().zip(self.num_split_vars.iter()) {
       assert_eq!(w_vec.len(), *size);
     }
     assert_eq!(U.X.len(), self.num_io);
+    assert_eq!(self.num_split_vars.iter().sum::<usize>(), self.num_vars);
 
     // verify if Az * Bz = u*Cz
     let res_eq = {
@@ -375,7 +380,7 @@ impl<E: Engine> R1CSShape<E> {
   /// Pads the `R1CSShape` so that the shape passes `is_regular_shape`
   /// Renumbers variables to accommodate padded variables
   pub fn pad(&self) -> Self {
-    let total_num_vars = self.num_vars.iter().sum();
+    let total_num_vars = self.num_vars;
 
     // check if the provided R1CSShape is already as required
     if self.is_regular_shape() {
@@ -390,7 +395,8 @@ impl<E: Engine> R1CSShape<E> {
     if total_num_vars == m {
       return R1CSShape {
         num_cons: m,
-        num_vars: self.num_vars.clone(),
+        num_split_vars: self.num_split_vars.clone(),
+        num_vars: self.num_vars,
         num_io: self.num_io,
         A: self.A.clone(),
         B: self.B.clone(),
@@ -425,15 +431,17 @@ impl<E: Engine> R1CSShape<E> {
     let C_padded = apply_pad(self.C.clone());
 
     // pad the last one
-    let mut new_num_vars = self.num_vars.clone();
+    let mut new_num_split_vars = self.num_split_vars.clone();
 
-    if let Some(last) = new_num_vars.last_mut() {
+    if let Some(last) = new_num_split_vars.last_mut() {
       (*last) = *last + num_vars_padded - total_num_vars;
     }
 
+    let num_vars = new_num_split_vars.iter().sum();
     R1CSShape {
       num_cons: num_cons_padded,
-      num_vars: new_num_vars,
+      num_split_vars: new_num_split_vars,
+      num_vars,
       num_io: self.num_io,
       A: A_padded,
       B: B_padded,
@@ -449,7 +457,7 @@ impl<E: Engine> R1CSShape<E> {
   ) -> Result<(RelaxedR1CSInstance<E>, RelaxedR1CSWitness<E>), NovaError> {
     // sample
     let mut W = Vec::new();
-    for sub_num_vars in &self.num_vars {
+    for sub_num_vars in &self.num_split_vars {
       let mut sub_W = Vec::new();
       for _i in 0..*sub_num_vars {
         sub_W.push(E::Scalar::random(&mut OsRng));
@@ -465,7 +473,7 @@ impl<E: Engine> R1CSShape<E> {
     let u = E::Scalar::random(&mut OsRng);
 
     let mut r_W = Vec::new();
-    for _i in 0..self.num_vars.len() {
+    for _i in 0..self.num_split_vars.len() {
       r_W.push(E::Scalar::random(&mut OsRng));
     }
     let r_E = E::Scalar::random(&mut OsRng);
@@ -508,7 +516,7 @@ impl<E: Engine> R1CSWitness<E> {
   pub fn new(S: &R1CSShape<E>, W: Vec<&[E::Scalar]>) -> Result<R1CSWitness<E>, NovaError> {
     let mut wits = Vec::new();
     let mut r_W = Vec::new();
-    for (n, wi) in S.num_vars.iter().zip(W) {
+    for (n, wi) in S.num_split_vars.iter().zip(W) {
       if *n != wi.len() {
         return Err(NovaError::InvalidWitnessLength);
       }
@@ -561,13 +569,13 @@ impl<E: Engine> RelaxedR1CSWitness<E> {
   /// Produces a default `RelaxedR1CSWitness` given an `R1CSShape`
   pub fn default(S: &R1CSShape<E>) -> RelaxedR1CSWitness<E> {
     let mut W = Vec::new();
-    for sub_num_vars in &S.num_vars {
+    for sub_num_vars in &S.num_split_vars {
       W.push(vec![E::Scalar::ZERO; *sub_num_vars]);
     }
 
     RelaxedR1CSWitness {
       W,
-      r_W: vec![E::Scalar::ZERO; S.num_vars.len()],
+      r_W: vec![E::Scalar::ZERO; S.num_split_vars.len()],
       E: vec![E::Scalar::ZERO; S.num_cons],
       r_E: E::Scalar::ZERO,
     }
@@ -696,11 +704,13 @@ impl<E: Engine> RelaxedR1CSWitness<E> {
 
   /// Pads the provided witness to the correct length
   pub fn pad(&self, S: &R1CSShape<E>) -> RelaxedR1CSWitness<E> {
+    println!("PADDING THE WIT");
+
     let mut W = self.W.clone();
     if let Some(last) = W.last_mut() {
       (*last).extend(vec![
         E::Scalar::ZERO;
-        *S.num_vars.last().unwrap()
+        *S.num_split_vars.last().unwrap()
           - self.W.last().unwrap().len()
       ]);
     }
@@ -734,7 +744,7 @@ impl<E: Engine> RelaxedR1CSInstance<E> {
   /// Produces a default `RelaxedR1CSInstance` given `R1CSGens` and `R1CSShape`
   pub fn default(_ck: &CommitmentKey<E>, S: &R1CSShape<E>) -> RelaxedR1CSInstance<E> {
     let (comm_W, comm_E) = (
-      vec![Commitment::<E>::default(); S.num_vars.len()],
+      vec![Commitment::<E>::default(); S.num_split_vars.len()],
       Commitment::<E>::default(),
     );
     RelaxedR1CSInstance {

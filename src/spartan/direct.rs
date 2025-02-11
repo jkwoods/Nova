@@ -114,6 +114,12 @@ impl<E: Engine, S: RelaxedR1CSSNARKTrait<E>, C: StepCircuit<E::Scalar>> DirectSN
 
     let (shape, ck) = cs.r1cs_shape(&*S::ck_floor(), false, 0);
 
+    println!(
+      "SHAPE {:#?} {:#?}",
+      shape.num_vars,
+      shape.num_split_vars.clone()
+    );
+
     let (pk, vk) = S::setup(&ck, &shape)?;
 
     let dk = E::CE::derand_key(&ck);

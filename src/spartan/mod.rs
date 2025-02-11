@@ -243,7 +243,7 @@ fn compute_eval_table_sparse<E: Engine>(
   rx: &[E::Scalar],
 ) -> (Vec<E::Scalar>, Vec<E::Scalar>, Vec<E::Scalar>) {
   assert_eq!(rx.len(), S.num_cons);
-  let total_num_vars = S.num_vars.iter().sum::<usize>();
+  let total_num_vars = S.num_vars;
 
   let inner = |M: &SparseMatrix<E::Scalar>, M_evals: &mut Vec<E::Scalar>| {
     for (row_idx, ptrs) in M.indptr.windows(2).enumerate() {

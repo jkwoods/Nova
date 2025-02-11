@@ -217,10 +217,12 @@ where
     assert!(start < end);
     assert!(end < ck.ck.len());
 
-    Self::CommitmentKey {
-      ck: ck.ck[start..end].to_vec(),
-      h: None,
-    }
+    let mut ck = ck.ck[start..end].to_vec();
+    let len = end - start;
+    let len2 = len.next_power_of_two();
+    ck.extend(ck[start..(start + len2 - len)].to_vec());
+
+    Self::CommitmentKey { ck: ck, h: None }
   }
 
   fn commit(ck: &Self::CommitmentKey, v: &[E::Scalar], r: &E::Scalar) -> Self::Commitment {
