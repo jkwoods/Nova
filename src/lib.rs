@@ -168,7 +168,7 @@ where
     );
     let mut cs: ShapeCS<E1> = ShapeCS::new();
     let _ = circuit_primary.synthesize(&mut cs);
-    let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape(ck_hint1, true, ram_batch_size);
+    let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape(ck_hint1, false, ram_batch_size);
 
     // Initialize ck for the secondary
     let circuit_secondary: NovaAugmentedCircuit<'_, E1, C2> = NovaAugmentedCircuit::new(
@@ -1650,6 +1650,7 @@ mod tests {
       &[<E1 as Engine>::Scalar::ONE],
       &[<E2 as Engine>::Scalar::ZERO],
     );
+    println!("RES {:#?}", res.clone());
     assert!(res.is_ok());
 
     let (zn_primary, zn_secondary) = res.unwrap();
