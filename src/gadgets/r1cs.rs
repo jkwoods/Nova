@@ -4,7 +4,7 @@ use super::nonnative::{
   util::{f_to_nat, Num},
 };
 use crate::{
-  constants::{NUM_CHALLENGE_BITS, NUM_FE_FOR_RO},
+  constants::{NUM_CHALLENGE_BITS, NUM_FE_WITHOUT_WIT_FOR_RO},
   gadgets::{
     ecc::AllocatedPoint,
     utils::{
@@ -22,7 +22,7 @@ use ff::Field;
 /// An Allocated R1CS Instance
 #[derive(Clone)]
 pub struct AllocatedR1CSInstance<E: Engine> {
-  pub(crate) W: AllocatedPoint<E>,
+  pub(crate) W: Vec<AllocatedPoint<E>>,
   pub(crate) X0: AllocatedNum<E::Base>,
   pub(crate) X1: AllocatedNum<E::Base>,
 }
@@ -32,12 +32,29 @@ impl<E: Engine> AllocatedR1CSInstance<E> {
   pub fn alloc<CS: ConstraintSystem<<E as Engine>::Base>>(
     mut cs: CS,
     u: Option<&R1CSInstance<E>>,
+    num_split_wits: usize,
   ) -> Result<Self, SynthesisError> {
-    let W = AllocatedPoint::alloc(
-      cs.namespace(|| "allocate W"),
-      u.map(|u| u.comm_W.to_coordinates()),
-    )?;
-    W.check_on_curve(cs.namespace(|| "check W on curve"))?;
+    let mut W = Vec::new();
+
+    if u.is_some() {
+      for (i, w) in u.as_ref().unwrap().comm_W.iter().enumerate() {
+        W.push(AllocatedPoint::alloc(
+          cs.namespace(|| format!("allocate W_{}", i)),
+          Some(w.to_coordinates()),
+        )?);
+      }
+    } else {
+      for i in 0..num_split_wits {
+        W.push(AllocatedPoint::alloc(
+          cs.namespace(|| format!("allocate W_{}", i)),
+          None,
+        )?);
+      }
+    }
+
+    for (i, w) in W.iter().enumerate() {
+      w.check_on_curve(cs.namespace(|| format!("check W on curve {}", i)))?;
+    }
 
     let X0 = alloc_scalar_as_base::<E, _>(cs.namespace(|| "allocate X[0]"), u.map(|u| u.X[0]))?;
     let X1 = alloc_scalar_as_base::<E, _>(cs.namespace(|| "allocate X[1]"), u.map(|u| u.X[1]))?;
@@ -47,9 +64,11 @@ impl<E: Engine> AllocatedR1CSInstance<E> {
 
   /// Absorb the provided instance in the RO
   pub fn absorb_in_ro(&self, ro: &mut E::ROCircuit) {
-    ro.absorb(&self.W.x);
-    ro.absorb(&self.W.y);
-    ro.absorb(&self.W.is_infinity);
+    for w in &self.W {
+      ro.absorb(&w.x);
+      ro.absorb(&w.y);
+      ro.absorb(&w.is_infinity);
+    }
     ro.absorb(&self.X0);
     ro.absorb(&self.X1);
   }
@@ -57,7 +76,7 @@ impl<E: Engine> AllocatedR1CSInstance<E> {
 
 /// An Allocated Relaxed R1CS Instance
 pub struct AllocatedRelaxedR1CSInstance<E: Engine> {
-  pub(crate) W: AllocatedPoint<E>,
+  pub(crate) W: Vec<AllocatedPoint<E>>,
   pub(crate) E: AllocatedPoint<E>,
   pub(crate) u: AllocatedNum<E::Base>,
   pub(crate) X0: BigNat<E::Base>,
@@ -71,14 +90,29 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
     inst: Option<&RelaxedR1CSInstance<E>>,
     limb_width: usize,
     n_limbs: usize,
+    num_split_wits: usize,
   ) -> Result<Self, SynthesisError> {
     // We do not need to check that W or E are well-formed (e.g., on the curve) as we do a hash check
     // in the Nova augmented circuit, which ensures that the relaxed instance
     // came from a prior iteration of Nova.
-    let W = AllocatedPoint::alloc(
-      cs.namespace(|| "allocate W"),
-      inst.map(|inst| inst.comm_W.to_coordinates()),
-    )?;
+
+    let mut W = Vec::new();
+    if inst.is_some() {
+      assert_eq!(num_split_wits, inst.as_ref().unwrap().comm_W.len());
+      for (i, w) in inst.as_ref().unwrap().comm_W.iter().enumerate() {
+        W.push(AllocatedPoint::alloc(
+          cs.namespace(|| format!("allocate W_{}", i)),
+          Some(w.to_coordinates()),
+        )?);
+      }
+    } else {
+      for i in 0..num_split_wits {
+        W.push(AllocatedPoint::alloc(
+          cs.namespace(|| format!("allocate W_{}", i)),
+          None,
+        )?);
+      }
+    }
 
     let E = AllocatedPoint::alloc(
       cs.namespace(|| "allocate E"),
@@ -113,11 +147,17 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
     mut cs: CS,
     limb_width: usize,
     n_limbs: usize,
+    num_split_wits: usize,
   ) -> Result<Self, SynthesisError> {
-    let W = AllocatedPoint::default(cs.namespace(|| "allocate W"))?;
-    let E = W.clone();
+    let mut W = Vec::new();
+    for i in 0..num_split_wits {
+      W.push(AllocatedPoint::default(
+        cs.namespace(|| format!("allocate W_{}", i)),
+      )?);
+    }
+    let E = W[0].clone();
 
-    let u = W.x.clone(); // In the default case, W.x = u = 0
+    let u = W[0].x.clone(); // In the default case, W.x = u = 0
 
     // X0 and X1 are allocated and in the honest prover case set to zero
     // If the prover is malicious, it can set to arbitrary values, but the resulting
@@ -180,9 +220,11 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
     mut cs: CS,
     ro: &mut E::ROCircuit,
   ) -> Result<(), SynthesisError> {
-    ro.absorb(&self.W.x);
-    ro.absorb(&self.W.y);
-    ro.absorb(&self.W.is_infinity);
+    for w in &self.W {
+      ro.absorb(&w.x);
+      ro.absorb(&w.y);
+      ro.absorb(&w.is_infinity);
+    }
     ro.absorb(&self.E.x);
     ro.absorb(&self.E.y);
     ro.absorb(&self.E.is_infinity);
@@ -235,7 +277,7 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
     n_limbs: usize,
   ) -> Result<AllocatedRelaxedR1CSInstance<E>, SynthesisError> {
     // Compute r:
-    let mut ro = E::ROCircuit::new(ro_consts, NUM_FE_FOR_RO);
+    let mut ro = E::ROCircuit::new(ro_consts, NUM_FE_WITHOUT_WIT_FOR_RO + 3 * u.W.len());
     ro.absorb(params);
 
     // running instance `U` does not need to absorbed since u.X[0] = Hash(params, U, i, z0, zi)
@@ -248,8 +290,11 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
     let r = le_bits_to_num(cs.namespace(|| "r"), &r_bits)?;
 
     // W_fold = self.W + r * u.W
-    let rW = u.W.scalar_mul(cs.namespace(|| "r * u.W"), &r_bits)?;
-    let W_fold = self.W.add(cs.namespace(|| "self.W + r * u.W"), &rW)?;
+    let mut W_fold = Vec::new();
+    for (i, (uw, sw)) in u.W.iter().zip(&self.W).enumerate() {
+      let rW = uw.scalar_mul(cs.namespace(|| format!("r * u.W {}", i)), &r_bits)?;
+      W_fold.push(sw.add(cs.namespace(|| format!("self.W + r * u.W {}", i)), &rW)?);
+    }
 
     // E_fold = self.E + r * T
     let rT = T.scalar_mul(cs.namespace(|| "r * T"), &r_bits)?;
@@ -329,12 +374,15 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
     other: &AllocatedRelaxedR1CSInstance<E>,
     condition: &Boolean,
   ) -> Result<AllocatedRelaxedR1CSInstance<E>, SynthesisError> {
-    let W = AllocatedPoint::conditionally_select(
-      cs.namespace(|| "W = cond ? self.W : other.W"),
-      &self.W,
-      &other.W,
-      condition,
-    )?;
+    let mut W = Vec::new();
+    for (i, (sw, ow)) in self.W.iter().zip(&other.W).enumerate() {
+      W.push(AllocatedPoint::conditionally_select(
+        cs.namespace(|| format!("W = cond ? self.W : other {}", i)),
+        &sw,
+        &ow,
+        condition,
+      )?);
+    }
 
     let E = AllocatedPoint::conditionally_select(
       cs.namespace(|| "E = cond ? self.E : other.E"),

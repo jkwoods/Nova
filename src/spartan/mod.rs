@@ -10,7 +10,7 @@ pub mod direct;
 mod macros;
 pub(crate) mod math;
 pub mod polys;
-pub mod ppsnark;
+//pub mod ppsnark;
 pub mod snark;
 mod sumcheck;
 
@@ -243,6 +243,7 @@ fn compute_eval_table_sparse<E: Engine>(
   rx: &[E::Scalar],
 ) -> (Vec<E::Scalar>, Vec<E::Scalar>, Vec<E::Scalar>) {
   assert_eq!(rx.len(), S.num_cons);
+  let total_num_vars = S.num_vars;
 
   let inner = |M: &SparseMatrix<E::Scalar>, M_evals: &mut Vec<E::Scalar>| {
     for (row_idx, ptrs) in M.indptr.windows(2).enumerate() {
@@ -254,19 +255,19 @@ fn compute_eval_table_sparse<E: Engine>(
 
   let (A_evals, (B_evals, C_evals)) = rayon::join(
     || {
-      let mut A_evals: Vec<E::Scalar> = vec![E::Scalar::ZERO; 2 * S.num_vars];
+      let mut A_evals: Vec<E::Scalar> = vec![E::Scalar::ZERO; 2 * total_num_vars];
       inner(&S.A, &mut A_evals);
       A_evals
     },
     || {
       rayon::join(
         || {
-          let mut B_evals: Vec<E::Scalar> = vec![E::Scalar::ZERO; 2 * S.num_vars];
+          let mut B_evals: Vec<E::Scalar> = vec![E::Scalar::ZERO; 2 * total_num_vars];
           inner(&S.B, &mut B_evals);
           B_evals
         },
         || {
-          let mut C_evals: Vec<E::Scalar> = vec![E::Scalar::ZERO; 2 * S.num_vars];
+          let mut C_evals: Vec<E::Scalar> = vec![E::Scalar::ZERO; 2 * total_num_vars];
           inner(&S.C, &mut C_evals);
           C_evals
         },

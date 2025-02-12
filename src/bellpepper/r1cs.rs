@@ -27,7 +27,12 @@ pub trait NovaShape<E: Engine> {
   /// Return an appropriate `R1CSShape` and `CommitmentKey` structs.
   /// A `CommitmentKeyHint` should be provided to help guide the construction of the `CommitmentKey`.
   /// This parameter is documented in `r1cs::R1CS::commitment_key`.
-  fn r1cs_shape(&self, ck_hint: &CommitmentKeyHint<E>) -> (R1CSShape<E>, CommitmentKey<E>);
+  fn r1cs_shape(
+    &self,
+    ck_hint: &CommitmentKeyHint<E>,
+    custom_shape: bool,
+    ram_batch_size: usize,
+  ) -> (R1CSShape<E>, CommitmentKey<E>);
 }
 
 impl<E: Engine> NovaWitness<E> for SatisfyingAssignment<E> {
@@ -36,7 +41,23 @@ impl<E: Engine> NovaWitness<E> for SatisfyingAssignment<E> {
     shape: &R1CSShape<E>,
     ck: &CommitmentKey<E>,
   ) -> Result<(R1CSInstance<E>, R1CSWitness<E>), NovaError> {
-    let W = R1CSWitness::<E>::new(shape, self.aux_assignment())?;
+    let long_wit = self.aux_assignment();
+    println!(
+      "LONG WIT {:#}, SPLITS {:#?}",
+      long_wit.len(),
+      shape.num_split_vars.clone()
+    );
+
+    let mut div_wit = Vec::new();
+    let mut start = 0;
+    let mut end = 0;
+    for v in &shape.num_split_vars {
+      start = end;
+      end += v;
+      div_wit.push(&long_wit[start..end]);
+    }
+
+    let W = R1CSWitness::<E>::new(shape, div_wit)?;
     let X = &self.input_assignment()[1..];
 
     let comm_W = W.commit(ck);
@@ -53,7 +74,12 @@ macro_rules! impl_nova_shape {
     where
       E::Scalar: PrimeField,
     {
-      fn r1cs_shape(&self, ck_hint: &CommitmentKeyHint<E>) -> (R1CSShape<E>, CommitmentKey<E>) {
+      fn r1cs_shape(
+        &self,
+        ck_hint: &CommitmentKeyHint<E>,
+        custom_shape: bool,
+        ram_batch_size: usize,
+      ) -> (R1CSShape<E>, CommitmentKey<E>) {
         let mut A = SparseMatrix::<E::Scalar>::empty();
         let mut B = SparseMatrix::<E::Scalar>::empty();
         let mut C = SparseMatrix::<E::Scalar>::empty();
@@ -62,12 +88,18 @@ macro_rules! impl_nova_shape {
         let mut X = (&mut A, &mut B, &mut C, &mut num_cons_added);
         let num_inputs = self.num_inputs();
         let num_constraints = self.num_constraints();
-        let num_vars = self.num_aux();
+
+        let num_vars = if custom_shape {
+          vec![1, ram_batch_size, self.num_aux() - 1 - ram_batch_size]
+        } else {
+          vec![self.num_aux()]
+        };
+        let total_num_vars = num_vars.iter().sum();
 
         for constraint in self.constraints.iter() {
           add_constraint(
             &mut X,
-            num_vars,
+            total_num_vars,
             &constraint.0,
             &constraint.1,
             &constraint.2,
@@ -75,9 +107,9 @@ macro_rules! impl_nova_shape {
         }
         assert_eq!(num_cons_added, num_constraints);
 
-        A.cols = num_vars + num_inputs;
-        B.cols = num_vars + num_inputs;
-        C.cols = num_vars + num_inputs;
+        A.cols = total_num_vars + num_inputs;
+        B.cols = total_num_vars + num_inputs;
+        C.cols = total_num_vars + num_inputs;
 
         // Don't count One as an input for shape's purposes.
         let S = R1CSShape::new(num_constraints, num_vars, num_inputs - 1, A, B, C).unwrap();

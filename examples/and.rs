@@ -231,6 +231,7 @@ fn main() {
       &circuit_secondary,
       &*S1::ck_floor(),
       &*S2::ck_floor(),
+      2,
     )
     .unwrap();
     println!("PublicParams::setup, took {:?} ", start.elapsed());
@@ -245,11 +246,11 @@ fn main() {
     );
 
     println!(
-      "Number of variables per step (primary circuit): {}",
+      "Number of variables per step (primary circuit): {:#?}",
       pp.num_variables().0
     );
     println!(
-      "Number of variables per step (secondary circuit): {}",
+      "Number of variables per step (secondary circuit): {:#?}",
       pp.num_variables().1
     );
 

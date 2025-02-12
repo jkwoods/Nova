@@ -213,8 +213,33 @@ where
     }
   }
 
+  fn split_key_at(
+    ck: &Self::CommitmentKey,
+    n: usize,
+  ) -> (Self::CommitmentKey, Self::CommitmentKey) {
+    let mut key1 = CommitmentKey {
+      ck: ck.ck[0..n].to_vec(),
+      h: ck.h.clone(),
+    };
+    let key2 = CommitmentKey {
+      ck: ck.ck[n..].to_vec(),
+      h: ck.h.clone(),
+    };
+
+    // pad to power of two
+    key1
+      .ck
+      .extend(E::GE::from_label(b"padding", n.next_power_of_two() - n));
+
+    (key1, key2)
+  }
+
   fn commit(ck: &Self::CommitmentKey, v: &[E::Scalar], r: &E::Scalar) -> Self::Commitment {
-    assert!(ck.ck.len() >= v.len());
+    assert!(
+      ck.ck.len() >= v.len(),
+      "{}",
+      format!("ck {:#?}, c {:#?}", ck.ck.len(), v.len())
+    );
 
     if ck.h.is_some() {
       let mut scalars: Vec<E::Scalar> = v.to_vec();

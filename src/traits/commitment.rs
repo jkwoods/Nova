@@ -100,4 +100,8 @@ pub trait CommitmentEngineTrait<E: Engine>: Clone + Send + Sync {
     commit: &Self::Commitment,
     r: &E::Scalar,
   ) -> Self::Commitment;
+
+  /// Split generators
+  fn split_key_at(ck: &Self::CommitmentKey, n: usize)
+    -> (Self::CommitmentKey, Self::CommitmentKey);
 }
