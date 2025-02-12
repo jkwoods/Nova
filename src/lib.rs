@@ -117,7 +117,7 @@ where
   /// # Example
   ///
   /// ```rust
-  /// # use nova_snark::spartan::ppsnark::RelaxedR1CSSNARK;
+  /// # use nova_snark::spartan::snark::RelaxedR1CSSNARK;
   /// # use nova_snark::provider::ipa_pc::EvaluationEngine;
   /// # use nova_snark::provider::{PallasEngine, VestaEngine};
   /// # use nova_snark::traits::{circuit::TrivialCircuit, Engine, snark::RelaxedR1CSSNARKTrait};
@@ -135,7 +135,8 @@ where
   /// let ck_hint1 = &*SPrime::<E1>::ck_floor();
   /// let ck_hint2 = &*SPrime::<E2>::ck_floor();
   ///
-  /// let pp = PublicParams::setup(&circuit1, &circuit2, ck_hint1, ck_hint2);
+  /// let ram_batch_size = 0;
+  /// let pp = PublicParams::setup(&circuit1, &circuit2, ck_hint1, ck_hint2, ram_batch_size);
   /// ```
   pub fn setup(
     c_primary: &C1,
@@ -145,7 +146,7 @@ where
     ram_batch_size: usize,
   ) -> Result<Self, NovaError> {
     let augmented_circuit_params_primary =
-      NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true, 3);
+      NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true, 1);
     let augmented_circuit_params_secondary =
       NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false, 3);
 
@@ -179,7 +180,7 @@ where
     );
     let mut cs: ShapeCS<E2> = ShapeCS::new();
     let _ = circuit_secondary.synthesize(&mut cs);
-    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape(ck_hint2, true, ram_batch_size);
+    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape(ck_hint2, false, 0);
 
     if r1cs_shape_primary.num_io != 2 || r1cs_shape_secondary.num_io != 2 {
       return Err(NovaError::InvalidStepCircuitIO);
