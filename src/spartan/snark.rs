@@ -21,7 +21,7 @@ use crate::{
   },
   traits::{
     commitment::CommitmentEngineTrait,
-    evaluation::EvaluationEngineTrait,
+    evaluation::{EvaluationEngineTrait, UnsplitProofTrait},
     snark::{DigestHelperTrait, RelaxedR1CSSNARKTrait},
     Engine, TranscriptEngineTrait,
   },
@@ -128,9 +128,9 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     W: &RelaxedR1CSWitness<E>,
   ) -> Result<Self, NovaError> {
     // pad the R1CSShape
-    let S = S.pad();
+    let mut S = S.pad();
     // sanity check that R1CSShape has all required size characteristics
-    assert!(S.is_regular_shape());
+    // assert!(S.is_regular_shape());
 
     let W = W.pad(&S); // pad the witness
 
@@ -142,14 +142,14 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     );
 
     // unsplit
-    let (U, W, unsplit_proof) = if S.num_split_vars.len() > 1 {
-      let (U, W, p) = Self::prove_unsplit_witnesses(ck, pk, U, &W)?;
+    let (U, mut W, unsplit_proof) = if S.num_split_vars.len() > 1 {
+      let (U, mut W, p) = Self::prove_unsplit_witnesses(ck, pk, U, &W)?;
       (U, W, Some(p))
     } else {
       (U.clone(), W, None)
     };
 
-    assert_eq!(W.W.len(), 1);
+    assert!(S.is_regular_shape());
 
     let mut transcript = E::TE::new(b"RelaxedR1CSSNARK");
 
@@ -262,7 +262,11 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     ];
     let u_vec = vec![
       PolyEvalInstance {
-        c: U.comm_W[0],
+        c: if unsplit_proof.is_some() {
+          unsplit_proof.as_ref().unwrap().get_comm_W()
+        } else {
+          U.comm_W[0]
+        },
         x: r_y[1..].to_vec(),
         e: eval_W,
       },
@@ -301,12 +305,15 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
 
   /// verifies a proof of satisfiability of a `RelaxedR1CS` instance
   fn verify(&self, vk: &Self::VerifierKey, U: &RelaxedR1CSInstance<E>) -> Result<(), NovaError> {
+    println!("verifying ...");
     // unsplit
     let U = if (vk.S.num_split_vars.len() > 1) {
       Self::verify_unsplit_witnesses(vk, self.unsplit_proof.as_ref().unwrap(), U)?
     } else {
       U.clone()
     };
+
+    println!("Verified unsplit snark");
 
     let mut transcript = E::TE::new(b"RelaxedR1CSSNARK");
 
@@ -411,7 +418,11 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     // add claims about W and E polynomials
     let u_vec: Vec<PolyEvalInstance<E>> = vec![
       PolyEvalInstance {
-        c: U.comm_W[0],
+        c: if self.unsplit_proof.is_some() {
+          self.unsplit_proof.as_ref().unwrap().get_comm_W()
+        } else {
+          U.comm_W[0]
+        },
         x: r_y[1..].to_vec(),
         e: self.eval_W,
       },

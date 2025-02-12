@@ -32,6 +32,7 @@ impl<E: Engine> AllocatedR1CSInstance<E> {
   pub fn alloc<CS: ConstraintSystem<<E as Engine>::Base>>(
     mut cs: CS,
     u: Option<&R1CSInstance<E>>,
+    num_split_wits: usize,
   ) -> Result<Self, SynthesisError> {
     let mut W = Vec::new();
 
@@ -43,7 +44,7 @@ impl<E: Engine> AllocatedR1CSInstance<E> {
         )?);
       }
     } else {
-      for i in 0..3 {
+      for i in 0..num_split_wits {
         W.push(AllocatedPoint::alloc(
           cs.namespace(|| format!("allocate W_{}", i)),
           None,
@@ -89,6 +90,7 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
     inst: Option<&RelaxedR1CSInstance<E>>,
     limb_width: usize,
     n_limbs: usize,
+    num_split_wits: usize,
   ) -> Result<Self, SynthesisError> {
     // We do not need to check that W or E are well-formed (e.g., on the curve) as we do a hash check
     // in the Nova augmented circuit, which ensures that the relaxed instance
@@ -96,6 +98,7 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
 
     let mut W = Vec::new();
     if inst.is_some() {
+      assert_eq!(num_split_wits, inst.as_ref().unwrap().comm_W.len());
       for (i, w) in inst.as_ref().unwrap().comm_W.iter().enumerate() {
         W.push(AllocatedPoint::alloc(
           cs.namespace(|| format!("allocate W_{}", i)),
@@ -103,7 +106,7 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
         )?);
       }
     } else {
-      for i in 0..3 {
+      for i in 0..num_split_wits {
         W.push(AllocatedPoint::alloc(
           cs.namespace(|| format!("allocate W_{}", i)),
           None,
@@ -144,9 +147,10 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
     mut cs: CS,
     limb_width: usize,
     n_limbs: usize,
+    num_split_wits: usize,
   ) -> Result<Self, SynthesisError> {
     let mut W = Vec::new();
-    for i in 0..3 {
+    for i in 0..num_split_wits {
       W.push(AllocatedPoint::default(
         cs.namespace(|| format!("allocate W_{}", i)),
       )?);

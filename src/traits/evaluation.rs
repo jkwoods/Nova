@@ -17,7 +17,7 @@ pub trait EvaluationEngineTrait<E: Engine>: Clone + Send + Sync {
   type VerifierKey: Clone + Send + Sync + Serialize + for<'de> Deserialize<'de>;
 
   /// A type that represents the Unsplit Proof
-  type UnsplitProof: Send + Sync + Serialize + for<'de> Deserialize<'de>;
+  type UnsplitProof: UnsplitProofTrait<E> + Send + Sync + Serialize + for<'de> Deserialize<'de>;
 
   /// A type that holds the evaluation argument
   type EvaluationArgument: Clone + Send + Sync + Serialize + for<'de> Deserialize<'de>;
@@ -70,4 +70,10 @@ pub trait EvaluationEngineTrait<E: Engine>: Clone + Send + Sync {
     U: &RelaxedR1CSInstance<E>,
     S: &R1CSShape<E>,
   ) -> Result<RelaxedR1CSInstance<E>, NovaError>;
+}
+
+/// Trait for unsplitting proofs
+pub trait UnsplitProofTrait<E: Engine>: Clone + Send + Sync {
+  /// Gets big C_W
+  fn get_comm_W(&self) -> <E::CE as CommitmentEngineTrait<E>>::Commitment;
 }

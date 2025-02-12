@@ -11,7 +11,7 @@ use crate::{
   provider::traits::{DlogGroup, PairingGroup},
   traits::{
     commitment::{CommitmentEngineTrait, CommitmentTrait, Len},
-    evaluation::EvaluationEngineTrait,
+    evaluation::{EvaluationEngineTrait, UnsplitProofTrait},
     AbsorbInROTrait, Engine, ROTrait, TranscriptEngineTrait, TranscriptReprTrait,
   },
   zip_with, R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness,
@@ -215,7 +215,10 @@ where
     Self::DerandKey { h: ck.h.clone() }
   }
 
-  fn split_key(ck: &Self::CommitmentKey, start: usize, end: usize) -> Self::CommitmentKey {
+  fn split_key_at(
+    ck: &Self::CommitmentKey,
+    n: usize,
+  ) -> (Self::CommitmentKey, Self::CommitmentKey) {
     unimplemented!();
   }
 
@@ -267,6 +270,12 @@ where
 #[serde(bound = "")]
 pub struct UnsplitProof<E: Engine> {
   _p: PhantomData<E>,
+}
+
+impl<E: Engine> UnsplitProofTrait<E> for UnsplitProof<E> {
+  fn get_comm_W(&self) -> <E::CE as CommitmentEngineTrait<E>>::Commitment {
+    unimplemented!();
+  }
 }
 
 /// Provides an implementation of a polynomial evaluation argument

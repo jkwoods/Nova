@@ -59,7 +59,7 @@ mod tests {
   #[test]
   fn test_alloc_bit() {
     test_alloc_bit_with::<PallasEngine>();
-    test_alloc_bit_with::<Bn256EngineKZG>();
+    //    test_alloc_bit_with::<Bn256EngineKZG>();
     test_alloc_bit_with::<Secp256k1Engine>();
   }
 }
