@@ -276,6 +276,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
       ro.absorb(e);
     }
     if self.accumulate_cmts {
+      println!("absorbing C_i nbc {:#?}", C_i.clone().unwrap().get_value());
       ro.absorb(C_i.as_ref().unwrap());
     }
     U.absorb_in_ro(cs.namespace(|| "absorb U"), &mut ro)?;
@@ -426,6 +427,11 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
       ro.absorb(e);
     }
     if self.accumulate_cmts {
+      println!(
+        "absorbing C_i out {:#?}",
+        C_next.clone().unwrap().get_value()
+      );
+
       ro.absorb(C_next.as_ref().unwrap());
     }
     Unew.absorb_in_ro(cs.namespace(|| "absorb U_new"), &mut ro)?;

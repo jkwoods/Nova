@@ -569,7 +569,8 @@ where
         pp.ro_consts_primary.clone(),
         NUM_FE_WITHOUT_IO_WIT_FOR_CRHF
           + 2 * pp.F_arity_secondary
-          + 3 * self.r_U_primary.comm_W.len(),
+          + 3 * self.r_U_primary.comm_W.len()
+          + 1, //if Ci.is_some() { 1 } else { 0 },
       );
       hasher2.absorb(scalar_as_base::<E1>(pp.digest()));
       hasher2.absorb(E2::Scalar::from(num_steps as u64));
@@ -579,6 +580,7 @@ where
       for e in &self.zi_secondary {
         hasher2.absorb(*e);
       }
+      hasher2.absorb(self.Ci);
       self.r_U_primary.absorb_in_ro(&mut hasher2);
       hasher2.absorb(self.ri_secondary);
 
@@ -718,6 +720,7 @@ where
 
   zn_primary: Vec<E1::Scalar>,
   zn_secondary: Vec<E2::Scalar>,
+  Ci: E2::Scalar,
 
   _p: PhantomData<(C1, C2)>,
 }
@@ -883,6 +886,7 @@ where
 
       zn_primary: recursive_snark.zi_primary.clone(),
       zn_secondary: recursive_snark.zi_secondary.clone(),
+      Ci: recursive_snark.Ci.clone(),
 
       _p: Default::default(),
     })
@@ -934,7 +938,8 @@ where
         vk.ro_consts_primary.clone(),
         NUM_FE_WITHOUT_IO_WIT_FOR_CRHF
           + 2 * vk.F_arity_secondary
-          + 3 * self.r_U_primary.comm_W.len(),
+          + 3 * self.r_U_primary.comm_W.len()
+          + 1, //if Ci.is_some() { 1 } else { 0 },
       );
       hasher2.absorb(scalar_as_base::<E1>(vk.pp_digest));
       hasher2.absorb(E2::Scalar::from(num_steps as u64));
@@ -944,6 +949,7 @@ where
       for e in &self.zn_secondary {
         hasher2.absorb(*e);
       }
+      hasher2.absorb(self.Ci);
       self.r_U_primary.absorb_in_ro(&mut hasher2);
       hasher2.absorb(self.ri_secondary);
 
@@ -1159,7 +1165,7 @@ mod tests {
       &test_circuit2,
       &*default_ck_hint(),
       &*default_ck_hint(),
-      2,
+      3,
     )
     .unwrap();
 
@@ -1215,7 +1221,7 @@ mod tests {
       &circuit_secondary,
       &*default_ck_hint(),
       &*default_ck_hint(),
-      2,
+      3,
     )
     .unwrap();
 
@@ -1299,7 +1305,7 @@ mod tests {
       &circuit_secondary,
       &*default_ck_hint(),
       &*default_ck_hint(),
-      2,
+      3,
     )
     .unwrap();
 
@@ -1563,7 +1569,7 @@ mod tests {
       &circuit_secondary,
       &*default_ck_hint(),
       &*default_ck_hint(),
-      2,
+      3,
     )
     .unwrap();
 
@@ -1652,7 +1658,7 @@ mod tests {
       &test_circuit2,
       &*default_ck_hint(),
       &*default_ck_hint(),
-      2,
+      3,
     )
     .unwrap();
 
@@ -1736,7 +1742,7 @@ mod tests {
         &TrivialCircuit::default(),
         &*default_ck_hint(),
         &*default_ck_hint(),
-        2,
+        3,
       );
     assert!(pp.is_err());
     assert_eq!(pp.err(), Some(NovaError::InvalidStepCircuitIO));
@@ -1749,7 +1755,7 @@ mod tests {
         &circuit,
         &*default_ck_hint(),
         &*default_ck_hint(),
-        2,
+        3,
       );
     assert!(pp.is_err());
     assert_eq!(pp.err(), Some(NovaError::InvalidStepCircuitIO));
