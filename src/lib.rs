@@ -166,6 +166,7 @@ where
       None,
       c_primary,
       ro_consts_circuit_primary.clone(),
+      false,
     );
     let mut cs: ShapeCS<E1> = ShapeCS::new();
     let _ = circuit_primary.synthesize(&mut cs);
@@ -177,6 +178,7 @@ where
       None,
       c_secondary,
       ro_consts_circuit_secondary.clone(),
+      true,
     );
     let mut cs: ShapeCS<E2> = ShapeCS::new();
     let _ = circuit_secondary.synthesize(&mut cs);
@@ -258,6 +260,7 @@ where
   i: usize,
   zi_primary: Vec<E1::Scalar>,
   zi_secondary: Vec<E2::Scalar>,
+  Ci: E2::Scalar,
   _p: PhantomData<(C1, C2)>,
 }
 
@@ -292,6 +295,7 @@ where
       None,
       None,
       None,
+      None,
       ri_primary, // "r next"
       None,
       None,
@@ -302,8 +306,9 @@ where
       Some(inputs_primary),
       c_primary,
       pp.ro_consts_circuit_primary.clone(),
+      false,
     );
-    let zi_primary = circuit_primary.synthesize(&mut cs_primary)?;
+    let (zi_primary, _) = circuit_primary.synthesize(&mut cs_primary)?;
     let (u_primary, w_primary) =
       cs_primary.r1cs_instance_and_witness(&pp.r1cs_shape_primary, &pp.ck_primary)?;
 
@@ -316,6 +321,7 @@ where
       None,
       None,
       None,
+      None,
       ri_secondary, // "r next"
       Some(u_primary.clone()),
       None,
@@ -325,8 +331,9 @@ where
       Some(inputs_secondary),
       c_secondary,
       pp.ro_consts_circuit_secondary.clone(),
+      true,
     );
-    let zi_secondary = circuit_secondary.synthesize(&mut cs_secondary)?;
+    let (zi_secondary, C_next) = circuit_secondary.synthesize(&mut cs_secondary)?;
     let (u_secondary, w_secondary) =
       cs_secondary.r1cs_instance_and_witness(&pp.r1cs_shape_secondary, &pp.ck_secondary)?;
 
@@ -373,6 +380,10 @@ where
       i: 0,
       zi_primary,
       zi_secondary,
+      Ci: C_next
+        .unwrap()
+        .get_value()
+        .ok_or(SynthesisError::AssignmentMissing)?,
       _p: Default::default(),
     })
   }
@@ -411,6 +422,7 @@ where
       E1::Scalar::from(self.i as u64),
       self.z0_primary.to_vec(),
       Some(self.zi_primary.clone()),
+      None,
       Some(self.r_U_secondary.clone()),
       Some(self.ri_primary),
       r_next_primary,
@@ -423,8 +435,9 @@ where
       Some(inputs_primary),
       c_primary,
       pp.ro_consts_circuit_primary.clone(),
+      false,
     );
-    let zi_primary = circuit_primary.synthesize(&mut cs_primary)?;
+    let (zi_primary, _) = circuit_primary.synthesize(&mut cs_primary)?;
 
     let (l_u_primary, l_w_primary) =
       cs_primary.r1cs_instance_and_witness(&pp.r1cs_shape_primary, &pp.ck_primary)?;
@@ -449,6 +462,7 @@ where
       E2::Scalar::from(self.i as u64),
       self.z0_secondary.to_vec(),
       Some(self.zi_secondary.clone()),
+      Some(self.Ci),
       Some(self.r_U_primary.clone()),
       Some(self.ri_secondary),
       r_next_secondary,
@@ -461,8 +475,9 @@ where
       Some(inputs_secondary),
       c_secondary,
       pp.ro_consts_circuit_secondary.clone(),
+      true,
     );
-    let zi_secondary = circuit_secondary.synthesize(&mut cs_secondary)?;
+    let (zi_secondary, C_next) = circuit_secondary.synthesize(&mut cs_secondary)?;
 
     let (l_u_secondary, l_w_secondary) = cs_secondary
       .r1cs_instance_and_witness(&pp.r1cs_shape_secondary, &pp.ck_secondary)
@@ -491,6 +506,11 @@ where
 
     self.ri_primary = r_next_primary;
     self.ri_secondary = r_next_secondary;
+
+    self.Ci = C_next
+      .unwrap()
+      .get_value()
+      .ok_or(SynthesisError::AssignmentMissing)?;
 
     Ok(())
   }
