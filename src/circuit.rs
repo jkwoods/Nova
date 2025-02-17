@@ -144,6 +144,15 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     ),
     SynthesisError,
   > {
+    // Allocate z0 first for SW CC
+    let z_0 = (0..arity)
+      .map(|i| {
+        AllocatedNum::alloc(cs.namespace(|| format!("z0_{i}")), || {
+          Ok(self.inputs.get()?.z0[i])
+        })
+      })
+      .collect::<Result<Vec<AllocatedNum<E::Base>>, _>>()?;
+
     // Allocate the params
     let params = alloc_scalar_as_base::<E, _>(
       cs.namespace(|| "params"),
@@ -152,15 +161,6 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
 
     // Allocate i
     let i = AllocatedNum::alloc(cs.namespace(|| "i"), || Ok(self.inputs.get()?.i))?;
-
-    // Allocate z0
-    let z_0 = (0..arity)
-      .map(|i| {
-        AllocatedNum::alloc(cs.namespace(|| format!("z0_{i}")), || {
-          Ok(self.inputs.get()?.z0[i])
-        })
-      })
-      .collect::<Result<Vec<AllocatedNum<E::Base>>, _>>()?;
 
     // Allocate zi. If inputs.zi is not provided (base case) allocate default value 0
     let zero = vec![E::Base::ZERO; arity];
