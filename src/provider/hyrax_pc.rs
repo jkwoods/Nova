@@ -140,15 +140,16 @@ where
     poly: &MultilinearPolynomial<E::Scalar>, // defined as vector Z
     poly_com: &PolyCommit<E>,
     blinds: &PolyCommitBlinds<E>,
-    r: &[E::Scalar],      // point at which the polynomial is evaluated
-    Zr: &E::Scalar,       // evaluation of poly(r)
+    r: &[E::Scalar], // point at which the polynomial is evaluated
+    Zr: &E::Scalar,  // evaluation of poly(r)
+    com_Zr: &Commitment<E>,
     blind_Zr: &E::Scalar, // blind for Zr
     transcript: &mut E::TE,
   ) -> Result<
     (
       InnerProductArgument<E>,
       InnerProductWitness<E>,
-      Commitment<E>,
+      //Commitment<E>,
     ),
     NovaError,
   > {
@@ -186,10 +187,10 @@ where
 
     // Commit to LZ and Zr
     let com_LZ = CE::<E>::commit(&self.ck_v, &LZ, &LZ_blind);
-    let com_Zr = CE::<E>::commit(&self.ck_s, &[*Zr], blind_Zr);
+    //let com_Zr = CE::<E>::commit(&self.ck_s, &[*Zr], blind_Zr);
 
     // a dot product argument (IPA) of size R_size
-    let ipa_instance = InnerProductInstance::<E>::new(&com_LZ, &R, &com_Zr);
+    let ipa_instance = InnerProductInstance::<E>::new(&com_LZ, &R, com_Zr);
     let ipa_witness = InnerProductWitness::<E>::new(&LZ, &LZ_blind, Zr, blind_Zr);
     let ipa = InnerProductArgument::<E>::prove(
       &self.ck_v,
@@ -199,7 +200,7 @@ where
       transcript,
     )?;
 
-    Ok((ipa, ipa_witness, com_Zr))
+    Ok((ipa, ipa_witness))
   }
 
   /// Verifies the proof showing the evaluation of a committed polynomial at a random point
@@ -310,19 +311,20 @@ mod tests {
     let mut prover_transcript = <E as Engine>::TE::new(b"example");
 
     let blind_eval = <E as Engine>::Scalar::random(&mut OsRng);
+    let comm_eval = CE::<E>::commit(&prover_gens.ck_s, &[eval], &blind_eval);
 
-    let (ipa_proof, _ipa_witness, comm_eval): (InnerProductArgument<E>, InnerProductWitness<E>, _) =
-      prover_gens
-        .prove_eval(
-          &poly,
-          &poly_comm,
-          &blinds,
-          &r,
-          &eval,
-          &blind_eval,
-          &mut prover_transcript,
-        )
-        .unwrap();
+    let (ipa_proof, _ipa_witness): (InnerProductArgument<E>, InnerProductWitness<E>) = prover_gens
+      .prove_eval(
+        &poly,
+        &poly_comm,
+        &blinds,
+        &r,
+        &eval,
+        &comm_eval,
+        &blind_eval,
+        &mut prover_transcript,
+      )
+      .unwrap();
 
     // Verifier actions
 
