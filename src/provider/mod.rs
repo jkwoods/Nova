@@ -8,6 +8,7 @@ pub mod zk_ipa_pc;
 
 // crate-public modules, made crate-public mostly for tests
 pub(crate) mod bn256_grumpkin;
+pub mod incremental;
 pub(crate) mod pasta;
 pub mod pedersen;
 pub mod poseidon;

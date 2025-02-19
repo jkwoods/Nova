@@ -84,6 +84,15 @@ where
     HyraxPC { ck_v, ck_s }
   }
 
+  /// Same as setup, with a preset eval generator
+  pub fn setup_with_ck_s(label: &'static [u8], num_vars: usize, ck_s: CommitmentKey<E>) -> Self {
+    let right = num_vars - num_vars / 2;
+    let gens = E::GE::from_label(label, (2usize).pow(right as u32));
+    let ck_v = CommitmentKey::<E>::from_gens(gens, Some(ck_s.get_h().clone()));
+
+    HyraxPC { ck_v, ck_s }
+  }
+
   fn commit_inner(
     &self,
     poly: &MultilinearPolynomial<E::Scalar>,
