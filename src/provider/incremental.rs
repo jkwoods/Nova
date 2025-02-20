@@ -8,6 +8,7 @@ use crate::{
   CommitmentKey, Engine, ROConstants, NUM_HASH_BITS,
 };
 use ff::Field;
+use rand_core::OsRng;
 use std::marker::PhantomData;
 
 /// Incremental Commitment Scheme Generators
@@ -45,7 +46,7 @@ where
 
   // TODO: iron out return type
   /// commit incrementally to chunk of list
-  pub fn commit(&self, c_i: Option<E2::Scalar>, w: &[E1::Scalar]) -> E1::Scalar {
+  pub fn commit(&self, c_i: Option<E2::Scalar>, w: &[E1::Scalar]) -> (E1::Scalar, E1::Scalar) {
     let mut cc = E1::RO::new(self.pos_constants.clone(), 4);
 
     if c_i.is_none() {
@@ -54,8 +55,8 @@ where
       cc.absorb(c_i.unwrap());
     }
 
-    // TODO: iron out blinds
-    let ped_cmt = E1::CE::commit(&self.ped_gen, w, &E1::Scalar::ZERO);
+    let blind = E1::Scalar::random(&mut OsRng);
+    let ped_cmt = E1::CE::commit(&self.ped_gen, w, &blind);
     let ped_coords = ped_cmt.to_coordinates();
 
     cc.absorb(ped_coords.0);
@@ -66,6 +67,6 @@ where
       E2::Scalar::ZERO
     });
 
-    cc.squeeze(NUM_HASH_BITS)
+    (cc.squeeze(NUM_HASH_BITS), blind)
   }
 }

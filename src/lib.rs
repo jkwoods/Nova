@@ -310,7 +310,7 @@ where
     );
     let (zi_primary, _) = circuit_primary.synthesize(&mut cs_primary)?;
     let (u_primary, w_primary) =
-      cs_primary.r1cs_instance_and_witness(&pp.r1cs_shape_primary, &pp.ck_primary)?;
+      cs_primary.r1cs_instance_and_witness(&pp.r1cs_shape_primary, &pp.ck_primary, None)?;
 
     // base case for the secondary
     let mut cs_secondary = SatisfyingAssignment::<E2>::new();
@@ -335,7 +335,7 @@ where
     );
     let (zi_secondary, C_next) = circuit_secondary.synthesize(&mut cs_secondary)?;
     let (u_secondary, w_secondary) =
-      cs_secondary.r1cs_instance_and_witness(&pp.r1cs_shape_secondary, &pp.ck_secondary)?;
+      cs_secondary.r1cs_instance_and_witness(&pp.r1cs_shape_secondary, &pp.ck_secondary, None)?;
 
     // IVC proof for the primary circuit
     let l_w_primary = w_primary;
@@ -440,7 +440,7 @@ where
     let (zi_primary, _) = circuit_primary.synthesize(&mut cs_primary)?;
 
     let (l_u_primary, l_w_primary) =
-      cs_primary.r1cs_instance_and_witness(&pp.r1cs_shape_primary, &pp.ck_primary)?;
+      cs_primary.r1cs_instance_and_witness(&pp.r1cs_shape_primary, &pp.ck_primary, None)?;
 
     // fold the primary circuit's instance
     let (nifs_primary, (r_U_primary, r_W_primary)) = NIFS::prove(
@@ -480,7 +480,7 @@ where
     let (zi_secondary, C_next) = circuit_secondary.synthesize(&mut cs_secondary)?;
 
     let (l_u_secondary, l_w_secondary) = cs_secondary
-      .r1cs_instance_and_witness(&pp.r1cs_shape_secondary, &pp.ck_secondary)
+      .r1cs_instance_and_witness(&pp.r1cs_shape_secondary, &pp.ck_secondary, None)
       .map_err(|_e| NovaError::UnSat)?;
 
     // update the running instances and witnesses

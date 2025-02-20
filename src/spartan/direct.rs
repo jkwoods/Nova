@@ -114,12 +114,6 @@ impl<E: Engine, S: RelaxedR1CSSNARKTrait<E>, C: StepCircuit<E::Scalar>> DirectSN
 
     let (shape, ck) = cs.r1cs_shape(&*S::ck_floor(), false, 0);
 
-    println!(
-      "SHAPE {:#?} {:#?}",
-      shape.num_vars,
-      shape.num_split_vars.clone()
-    );
-
     let (pk, vk) = S::setup(&ck, &shape)?;
 
     let dk = E::CE::derand_key(&ck);
@@ -142,7 +136,7 @@ impl<E: Engine, S: RelaxedR1CSSNARKTrait<E>, C: StepCircuit<E::Scalar>> DirectSN
 
     let _ = circuit.synthesize(&mut cs);
     let (u, w) = cs
-      .r1cs_instance_and_witness(&pk.S, &pk.ck)
+      .r1cs_instance_and_witness(&pk.S, &pk.ck, None)
       .map_err(|_e| NovaError::UnSat)?;
 
     // convert the instance and witness to relaxed form

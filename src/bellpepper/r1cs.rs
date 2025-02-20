@@ -10,7 +10,8 @@ use crate::{
   CommitmentKey,
 };
 use bellpepper_core::{Index, LinearCombination};
-use ff::PrimeField;
+use ff::{Field, PrimeField};
+use rand_core::OsRng;
 
 /// `NovaWitness` provide a method for acquiring an `R1CSInstance` and `R1CSWitness` from implementers.
 pub trait NovaWitness<E: Engine> {
@@ -19,6 +20,7 @@ pub trait NovaWitness<E: Engine> {
     &self,
     shape: &R1CSShape<E>,
     ck: &CommitmentKey<E>,
+    blinds: Option<&[E::Scalar]>,
   ) -> Result<(R1CSInstance<E>, R1CSWitness<E>), NovaError>;
 }
 
@@ -40,13 +42,9 @@ impl<E: Engine> NovaWitness<E> for SatisfyingAssignment<E> {
     &self,
     shape: &R1CSShape<E>,
     ck: &CommitmentKey<E>,
+    blinds: Option<&[E::Scalar]>,
   ) -> Result<(R1CSInstance<E>, R1CSWitness<E>), NovaError> {
     let long_wit = self.aux_assignment();
-    println!(
-      "LONG WIT {:#}, SPLITS {:#?}",
-      long_wit.len(),
-      shape.num_split_vars.clone()
-    );
 
     let mut div_wit = Vec::new();
     let mut start = 0;
@@ -57,7 +55,16 @@ impl<E: Engine> NovaWitness<E> for SatisfyingAssignment<E> {
       div_wit.push(&long_wit[start..end]);
     }
 
-    let W = R1CSWitness::<E>::new(shape, div_wit)?;
+    let mut r = Vec::new();
+    let r_W = if blinds.is_some() {
+      blinds.unwrap()
+    } else {
+      for _i in 0..shape.num_split_vars.len() {
+        r.push(E::Scalar::random(&mut OsRng));
+      }
+      &r
+    };
+    let W = R1CSWitness::<E>::new(shape, div_wit, r_W)?;
     let X = &self.input_assignment()[1..];
 
     let comm_W = W.commit(ck);

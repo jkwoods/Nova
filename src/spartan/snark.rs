@@ -307,7 +307,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
   fn verify(&self, vk: &Self::VerifierKey, U: &RelaxedR1CSInstance<E>) -> Result<(), NovaError> {
     println!("verifying ...");
     // unsplit
-    let U = if (vk.S.num_split_vars.len() > 1) {
+    let U = if vk.S.num_split_vars.len() > 1 {
       Self::verify_unsplit_witnesses(vk, self.unsplit_proof.as_ref().unwrap(), U)?
     } else {
       U.clone()
