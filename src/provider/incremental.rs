@@ -1,6 +1,7 @@
 //! This module provides an incremental commitment scheme
 use crate::{
   provider::{poseidon::PoseidonConstantsCircuit, traits::DlogGroup, PoseidonRO},
+  scalar_as_base,
   traits::{
     commitment::{CommitmentEngineTrait, CommitmentTrait, GetGeneratorsTrait},
     ROCircuitTrait, ROTrait,
@@ -46,7 +47,7 @@ where
 
   // TODO: iron out return type
   /// commit incrementally to chunk of list
-  pub fn commit(&self, c_i: Option<E2::Scalar>, w: &[E1::Scalar]) -> (E1::Scalar, E1::Scalar) {
+  pub fn commit(&self, c_i: Option<E2::Scalar>, w: &[E1::Scalar]) -> (E2::Scalar, E1::Scalar) {
     let mut cc = E1::RO::new(self.pos_constants.clone(), 4);
 
     if c_i.is_none() {
@@ -67,6 +68,6 @@ where
       E2::Scalar::ZERO
     });
 
-    (cc.squeeze(NUM_HASH_BITS), blind)
+    (scalar_as_base::<E1>(cc.squeeze(NUM_HASH_BITS)), blind)
   }
 }

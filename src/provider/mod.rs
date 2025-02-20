@@ -3,12 +3,12 @@
 // public modules to be used as an evaluation engine with Spartan
 pub mod hyperkzg;
 pub mod hyrax_pc;
+pub mod incremental;
 pub mod ipa_pc;
 pub mod zk_ipa_pc;
 
 // crate-public modules, made crate-public mostly for tests
 pub(crate) mod bn256_grumpkin;
-pub mod incremental;
 pub(crate) mod pasta;
 pub mod pedersen;
 pub mod poseidon;
