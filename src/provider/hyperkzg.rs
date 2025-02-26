@@ -211,6 +211,14 @@ where
     Self::CommitmentKey { ck, h, tau_H }
   }
 
+  fn setup_with_start(
+    label: &'static [u8],
+    n: usize,
+    gen_start: &[Self::CommitmentKey],
+  ) -> Self::CommitmentKey {
+    unimplemented!()
+  }
+
   fn derand_key(ck: &Self::CommitmentKey) -> Self::DerandKey {
     Self::DerandKey { h: ck.h.clone() }
   }

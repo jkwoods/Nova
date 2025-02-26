@@ -206,6 +206,26 @@ where
     }
   }
 
+  fn setup_with_start(
+    label: &'static [u8],
+    n: usize,
+    gen_start: &[Self::CommitmentKey],
+  ) -> Self::CommitmentKey {
+    assert!(gen_start.len() >= 1);
+
+    let mut gens = Vec::new();
+    for ck in gen_start {
+      gens.extend(ck.get_ck().clone());
+    }
+    gens.extend(E::GE::from_label(label, n.next_power_of_two() - gens.len()));
+    let h = gen_start[0].get_h();
+
+    Self::CommitmentKey {
+      ck: gens,
+      h: Some(h.clone()),
+    }
+  }
+
   fn derand_key(ck: &Self::CommitmentKey) -> Self::DerandKey {
     assert!(ck.h.is_some());
     Self::DerandKey {

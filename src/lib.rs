@@ -144,6 +144,7 @@ where
     ck_hint1: &CommitmentKeyHint<E1>,
     ck_hint2: &CommitmentKeyHint<E2>,
     ram_batch_size: usize,
+    gen_start: &[CommitmentKey<E1>],
   ) -> Result<Self, NovaError> {
     let augmented_circuit_params_primary =
       NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true, 1);
@@ -170,7 +171,7 @@ where
     );
     let mut cs: ShapeCS<E1> = ShapeCS::new();
     let _ = circuit_primary.synthesize(&mut cs);
-    let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape(ck_hint1, true, ram_batch_size);
+    let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape(ck_hint1, true, ram_batch_size, gen_start);
 
     // Initialize ck for the secondary
     let circuit_secondary: NovaAugmentedCircuit<'_, E1, C2> = NovaAugmentedCircuit::new(
@@ -182,7 +183,7 @@ where
     );
     let mut cs: ShapeCS<E2> = ShapeCS::new();
     let _ = circuit_secondary.synthesize(&mut cs);
-    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape(ck_hint2, false, 0);
+    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape(ck_hint2, false, 0, &[]);
 
     if r1cs_shape_primary.num_io != 2 || r1cs_shape_secondary.num_io != 2 {
       return Err(NovaError::InvalidStepCircuitIO);
@@ -1166,6 +1167,7 @@ mod tests {
       &*default_ck_hint(),
       &*default_ck_hint(),
       3,
+      &[],
     )
     .unwrap();
 
@@ -1222,6 +1224,7 @@ mod tests {
       &*default_ck_hint(),
       &*default_ck_hint(),
       3,
+      &[],
     )
     .unwrap();
 
@@ -1306,6 +1309,7 @@ mod tests {
       &*default_ck_hint(),
       &*default_ck_hint(),
       3,
+      &[],
     )
     .unwrap();
 
@@ -1570,6 +1574,7 @@ mod tests {
       &*default_ck_hint(),
       &*default_ck_hint(),
       3,
+      &[],
     )
     .unwrap();
 
@@ -1659,6 +1664,7 @@ mod tests {
       &*default_ck_hint(),
       &*default_ck_hint(),
       3,
+      &[],
     )
     .unwrap();
 
@@ -1743,6 +1749,7 @@ mod tests {
         &*default_ck_hint(),
         &*default_ck_hint(),
         3,
+        &[],
       );
     assert!(pp.is_err());
     assert_eq!(pp.err(), Some(NovaError::InvalidStepCircuitIO));
@@ -1756,6 +1763,7 @@ mod tests {
         &*default_ck_hint(),
         &*default_ck_hint(),
         3,
+        &[],
       );
     assert!(pp.is_err());
     assert_eq!(pp.err(), Some(NovaError::InvalidStepCircuitIO));

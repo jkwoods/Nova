@@ -93,11 +93,20 @@ impl<E: Engine> R1CS<E> {
   /// * `ck_floor`: A function that provides a floor for the number of generators. A good function
   ///   to provide is the ck_floor field defined in the trait `RelaxedR1CSSNARKTrait`.
   ///
-  pub fn commitment_key(S: &R1CSShape<E>, ck_floor: &CommitmentKeyHint<E>) -> CommitmentKey<E> {
+  pub fn commitment_key(
+    S: &R1CSShape<E>,
+    ck_floor: &CommitmentKeyHint<E>,
+    gen_start: &[CommitmentKey<E>],
+  ) -> CommitmentKey<E> {
     let num_cons = S.num_cons;
     let num_vars = S.num_vars;
     let ck_hint = ck_floor(S);
-    E::CE::setup(b"ck", max(max(num_cons, num_vars), ck_hint))
+
+    if gen_start.len() >= 1 {
+      E::CE::setup_with_start(b"ck", max(max(num_cons, num_vars), ck_hint), gen_start)
+    } else {
+      E::CE::setup(b"ck", max(max(num_cons, num_vars), ck_hint))
+    }
   }
 }
 
@@ -1004,7 +1013,7 @@ mod tests {
 
   fn test_random_sample_with<E: Engine>() {
     let r1cs = tiny_r1cs::<E>(4);
-    let ck = R1CS::<E>::commitment_key(&r1cs, &*default_ck_hint());
+    let ck = R1CS::<E>::commitment_key(&r1cs, &*default_ck_hint(), &[]);
     let (inst, wit) = r1cs.sample_random_instance_witness(&ck).unwrap();
     assert!(r1cs.is_sat_relaxed(&ck, &inst, &wit).is_ok());
   }

@@ -19,7 +19,8 @@ where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
 {
-  ped_gen: CommitmentKey<E1>,
+  /// pedersen gens  
+  pub ped_gen: CommitmentKey<E1>,
   pos_constants: ROConstants<E1>,
   _p: PhantomData<E2>,
 }
@@ -32,8 +33,13 @@ where
   CommitmentKey<E1>: GetGeneratorsTrait<E1>,
 {
   /// setup generators
-  pub fn setup(ped_gen: CommitmentKey<E1>, batch_size: usize) -> Self {
-    assert_eq!(ped_gen.get_ck().len(), batch_size);
+  pub fn setup(
+    label: &'static [u8],
+    h: <E1::GE as DlogGroup>::AffineGroupElement,
+    size: usize,
+  ) -> Self {
+    let pg = E1::GE::from_label(label, (2usize).pow(size as u32));
+    let ped_gen = CommitmentKey::<E1>::from_gens(pg, Some(h));
 
     // ROCC<E1> (to match secondary)
     let pos_constants: ROConstants<E1> = ROConstants::<E1>::default();

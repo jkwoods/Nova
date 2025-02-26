@@ -45,7 +45,7 @@ mod tests {
     // First create the shape
     let mut cs: ShapeCS<E> = ShapeCS::new();
     synthesize_alloc_bit(&mut cs);
-    let (shape, ck) = cs.r1cs_shape(&*default_ck_hint(), false, 0);
+    let (shape, ck) = cs.r1cs_shape(&*default_ck_hint(), false, 0, &[]);
 
     // Now get the assignment
     let mut cs = SatisfyingAssignment::<E>::new();

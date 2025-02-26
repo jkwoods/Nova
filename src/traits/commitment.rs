@@ -88,6 +88,13 @@ pub trait CommitmentEngineTrait<E: Engine>: Clone + Send + Sync {
   /// Samples a new commitment key of a specified size
   fn setup(label: &'static [u8], n: usize) -> Self::CommitmentKey;
 
+  /// Samples a new commitment key of a specified size, with some copied gens at the front
+  fn setup_with_start(
+    label: &'static [u8],
+    n: usize,
+    gen_start: &[Self::CommitmentKey],
+  ) -> Self::CommitmentKey;
+
   /// Extracts the blinding generator
   fn derand_key(ck: &Self::CommitmentKey) -> Self::DerandKey;
 
