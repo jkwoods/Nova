@@ -92,7 +92,7 @@ pub trait CommitmentEngineTrait<E: Engine>: Clone + Send + Sync {
   fn setup_with_start(
     label: &'static [u8],
     n: usize,
-    gen_start: &[Self::CommitmentKey],
+    gen_start: &[&Self::CommitmentKey],
   ) -> Self::CommitmentKey;
 
   /// Extracts the blinding generator

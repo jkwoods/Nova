@@ -136,7 +136,7 @@ where
   /// let ck_hint2 = &*SPrime::<E2>::ck_floor();
   ///
   /// let ram_batch_size = 0;
-  /// let pp = PublicParams::setup(&circuit1, &circuit2, ck_hint1, ck_hint2, ram_batch_size);
+  /// let pp = PublicParams::setup(&circuit1, &circuit2, ck_hint1, ck_hint2, ram_batch_size, &[]);
   /// ```
   pub fn setup(
     c_primary: &C1,
@@ -144,7 +144,7 @@ where
     ck_hint1: &CommitmentKeyHint<E1>,
     ck_hint2: &CommitmentKeyHint<E2>,
     ram_batch_size: usize,
-    gen_start: &[CommitmentKey<E1>],
+    gen_start: &[&CommitmentKey<E1>],
   ) -> Result<Self, NovaError> {
     let augmented_circuit_params_primary =
       NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true, 1);
@@ -250,7 +250,8 @@ where
 {
   z0_primary: Vec<E1::Scalar>,
   z0_secondary: Vec<E2::Scalar>,
-  r_W_primary: RelaxedR1CSWitness<E1>,
+  /// public to get the blind for nlookup prover
+  pub r_W_primary: RelaxedR1CSWitness<E1>,
   r_U_primary: RelaxedR1CSInstance<E1>,
   ri_primary: E1::Scalar,
   r_W_secondary: RelaxedR1CSWitness<E2>,
@@ -706,7 +707,8 @@ where
   l_ur_secondary: RelaxedR1CSInstance<E2>,
   nifs_Un_secondary: NIFSRelaxed<E2>,
 
-  r_U_primary: RelaxedR1CSInstance<E1>,
+  /// public to get the cmts to nlookup and ram
+  pub r_U_primary: RelaxedR1CSInstance<E1>,
   ri_primary: E1::Scalar,
   l_ur_primary: RelaxedR1CSInstance<E1>,
   nifs_Un_primary: NIFSRelaxed<E1>,
@@ -721,7 +723,9 @@ where
 
   zn_primary: Vec<E1::Scalar>,
   zn_secondary: Vec<E2::Scalar>,
-  Ci: E2::Scalar,
+
+  /// public for acc check
+  pub Ci: E2::Scalar,
 
   _p: PhantomData<(C1, C2)>,
 }

@@ -209,7 +209,7 @@ where
   fn setup_with_start(
     label: &'static [u8],
     n: usize,
-    gen_start: &[Self::CommitmentKey],
+    gen_start: &[&Self::CommitmentKey],
   ) -> Self::CommitmentKey {
     assert!(gen_start.len() >= 1);
 

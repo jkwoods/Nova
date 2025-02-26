@@ -34,7 +34,7 @@ pub trait NovaShape<E: Engine> {
     ck_hint: &CommitmentKeyHint<E>,
     custom_shape: bool,
     ram_batch_size: usize,
-    gen_start: &[CommitmentKey<E>],
+    gen_start: &[&CommitmentKey<E>],
   ) -> (R1CSShape<E>, CommitmentKey<E>);
 }
 
@@ -87,7 +87,7 @@ macro_rules! impl_nova_shape {
         ck_hint: &CommitmentKeyHint<E>,
         custom_shape: bool,
         ram_batch_size: usize,
-        gen_start: &[CommitmentKey<E>],
+        gen_start: &[&CommitmentKey<E>],
       ) -> (R1CSShape<E>, CommitmentKey<E>) {
         let mut A = SparseMatrix::<E::Scalar>::empty();
         let mut B = SparseMatrix::<E::Scalar>::empty();

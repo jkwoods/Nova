@@ -33,11 +33,8 @@ where
   CommitmentKey<E1>: GetGeneratorsTrait<E1>,
 {
   /// setup generators
-  pub fn setup(
-    label: &'static [u8],
-    h: <E1::GE as DlogGroup>::AffineGroupElement,
-    size: usize,
-  ) -> Self {
+  pub fn setup(label: &'static [u8], ck_s: &CommitmentKey<E1>, size: usize) -> Self {
+    let h = ck_s.get_h().clone();
     let pg = E1::GE::from_label(label, (2usize).pow(size as u32));
     let ped_gen = CommitmentKey::<E1>::from_gens(pg, Some(h));
 

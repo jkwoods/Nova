@@ -64,7 +64,8 @@ pub struct R1CSInstance<E: Engine> {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RelaxedR1CSWitness<E: Engine> {
   pub(crate) W: Vec<Vec<E::Scalar>>,
-  pub(crate) r_W: Vec<E::Scalar>,
+  /// public for nl blind
+  pub r_W: Vec<E::Scalar>,
   pub(crate) E: Vec<E::Scalar>,
   pub(crate) r_E: E::Scalar,
 }
@@ -73,7 +74,8 @@ pub struct RelaxedR1CSWitness<E: Engine> {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct RelaxedR1CSInstance<E: Engine> {
-  pub(crate) comm_W: Vec<Commitment<E>>,
+  /// public for nl and ram cmts  
+  pub comm_W: Vec<Commitment<E>>,
   pub(crate) comm_E: Commitment<E>,
   pub(crate) X: Vec<E::Scalar>,
   pub(crate) u: E::Scalar,
@@ -96,7 +98,7 @@ impl<E: Engine> R1CS<E> {
   pub fn commitment_key(
     S: &R1CSShape<E>,
     ck_floor: &CommitmentKeyHint<E>,
-    gen_start: &[CommitmentKey<E>],
+    gen_start: &[&CommitmentKey<E>],
   ) -> CommitmentKey<E> {
     let num_cons = S.num_cons;
     let num_vars = S.num_vars;
