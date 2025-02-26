@@ -65,7 +65,7 @@ where
   F_arity_secondary: usize,
   ro_consts_primary: ROConstants<E1>,
   ro_consts_circuit_primary: ROConstantsCircuit<E2>,
-  ck_primary: CommitmentKey<E1>,
+  pub ck_primary: CommitmentKey<E1>,
   r1cs_shape_primary: R1CSShape<E1>,
   ro_consts_secondary: ROConstants<E2>,
   ro_consts_circuit_secondary: ROConstantsCircuit<E1>,
@@ -721,7 +721,7 @@ where
   snark_primary: S1,
   snark_secondary: S2,
 
-  zn_primary: Vec<E1::Scalar>,
+  pub zn_primary: Vec<E1::Scalar>,
   zn_secondary: Vec<E2::Scalar>,
 
   /// public for acc check
