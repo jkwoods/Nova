@@ -48,7 +48,8 @@ impl<E: Engine> SimpleDigestible for R1CSShape<E> {}
 /// A type that holds a witness for a given R1CS instance
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct R1CSWitness<E: Engine> {
-  W: Vec<Vec<E::Scalar>>,
+  /// TEMP PUBLIC
+  pub W: Vec<Vec<E::Scalar>>,
   r_W: Vec<E::Scalar>,
 }
 
@@ -63,7 +64,8 @@ pub struct R1CSInstance<E: Engine> {
 /// A type that holds a witness for a given Relaxed R1CS instance
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RelaxedR1CSWitness<E: Engine> {
-  pub(crate) W: Vec<Vec<E::Scalar>>,
+  /// TEMP PUBLIC
+  pub W: Vec<Vec<E::Scalar>>,
   /// public for nl blind
   pub r_W: Vec<E::Scalar>,
   pub(crate) E: Vec<E::Scalar>,
@@ -726,8 +728,6 @@ impl<E: Engine> RelaxedR1CSWitness<E> {
 
   /// Pads the provided witness to the correct length
   pub fn pad(&self, S: &R1CSShape<E>) -> RelaxedR1CSWitness<E> {
-    println!("PADDING THE WIT");
-
     let mut W = self.W.clone();
     if let Some(last) = W.last_mut() {
       (*last).extend(vec![

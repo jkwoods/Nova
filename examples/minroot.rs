@@ -231,12 +231,13 @@ fn main() {
         &circuit_secondary,
         &z0_primary,
         &z0_secondary,
+        None,
       )
       .unwrap();
 
     for (i, circuit_primary) in minroot_circuits.iter().enumerate() {
       let start = Instant::now();
-      let res = recursive_snark.prove_step(&pp, circuit_primary, &circuit_secondary);
+      let res = recursive_snark.prove_step(&pp, circuit_primary, &circuit_secondary, None, vec![]);
       assert!(res.is_ok());
       println!(
         "RecursiveSNARK::prove_step {}: {:?}, took {:?} ",

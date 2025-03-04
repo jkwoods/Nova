@@ -147,9 +147,9 @@ where
     gen_start: &[&CommitmentKey<E1>],
   ) -> Result<Self, NovaError> {
     let augmented_circuit_params_primary =
-      NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true, 1);
+      NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true, 1, ram_batch_size);
     let augmented_circuit_params_secondary =
-      NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false, 3);
+      NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false, 3, 0);
 
     let ro_consts_primary: ROConstants<E1> = ROConstants::<E1>::default();
     let ro_consts_secondary: ROConstants<E2> = ROConstants::<E2>::default();
@@ -172,6 +172,12 @@ where
     let mut cs: ShapeCS<E1> = ShapeCS::new();
     let _ = circuit_primary.synthesize(&mut cs);
     let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape(ck_hint1, true, ram_batch_size, gen_start);
+    println!("SETUP r1cs shape {:#?}", r1cs_shape_primary.num_split_vars);
+    /*println!(
+      "ck primary {:#?}, gen start {:#?}",
+      ck_primary.clone(),
+      gen_start.clone()
+    );*/
 
     // Initialize ck for the secondary
     let circuit_secondary: NovaAugmentedCircuit<'_, E1, C2> = NovaAugmentedCircuit::new(
@@ -280,6 +286,7 @@ where
     c_secondary: &C2,
     z0_primary: &[E1::Scalar],
     z0_secondary: &[E2::Scalar],
+    ram_blind: Option<E1::Scalar>,
   ) -> Result<Self, NovaError> {
     if z0_primary.len() != pp.F_arity_primary || z0_secondary.len() != pp.F_arity_secondary {
       return Err(NovaError::InvalidInitialInputLength);
@@ -298,6 +305,7 @@ where
       None,
       None,
       None,
+      None,
       ri_primary, // "r next"
       None,
       None,
@@ -312,7 +320,9 @@ where
     );
     let (zi_primary, _) = circuit_primary.synthesize(&mut cs_primary)?;
     let (u_primary, w_primary) =
-      cs_primary.r1cs_instance_and_witness(&pp.r1cs_shape_primary, &pp.ck_primary, None)?;
+      cs_primary.r1cs_instance_and_witness(&pp.r1cs_shape_primary, &pp.ck_primary, ram_blind)?;
+    println!("new wit {:#?}, {:#?}", w_primary.W[0], w_primary.W[1]);
+    println!("cmt ram {:#?}", u_primary.comm_W[1]);
 
     // base case for the secondary
     let mut cs_secondary = SatisfyingAssignment::<E2>::new();
@@ -320,6 +330,7 @@ where
       pp.digest(),
       E2::Scalar::ZERO,
       z0_secondary.to_vec(),
+      None,
       None,
       None,
       None,
@@ -397,6 +408,8 @@ where
     pp: &PublicParams<E1, E2, C1, C2>,
     c_primary: &C1,
     c_secondary: &C2,
+    ram_blind: Option<E1::Scalar>,
+    ram_hints: Vec<E1::Scalar>,
   ) -> Result<(), NovaError> {
     // first step was already done in the constructor
     if self.i == 0 {
@@ -424,6 +437,7 @@ where
       E1::Scalar::from(self.i as u64),
       self.z0_primary.to_vec(),
       Some(self.zi_primary.clone()),
+      Some(ram_hints),
       None,
       Some(self.r_U_secondary.clone()),
       Some(self.ri_primary),
@@ -442,7 +456,12 @@ where
     let (zi_primary, _) = circuit_primary.synthesize(&mut cs_primary)?;
 
     let (l_u_primary, l_w_primary) =
-      cs_primary.r1cs_instance_and_witness(&pp.r1cs_shape_primary, &pp.ck_primary, None)?;
+      cs_primary.r1cs_instance_and_witness(&pp.r1cs_shape_primary, &pp.ck_primary, ram_blind)?;
+    println!(
+      "prove step wit {:#?}, {:#?}",
+      l_w_primary.W[0], l_w_primary.W[1]
+    );
+    println!("cmt ram {:#?}", l_u_primary.comm_W[1]);
 
     // fold the primary circuit's instance
     let (nifs_primary, (r_U_primary, r_W_primary)) = NIFS::prove(
@@ -464,6 +483,7 @@ where
       E2::Scalar::from(self.i as u64),
       self.z0_secondary.to_vec(),
       Some(self.zi_secondary.clone()),
+      Some(vec![]),
       Some(self.Ci),
       Some(self.r_U_primary.clone()),
       Some(self.ri_secondary),
@@ -544,7 +564,6 @@ where
       || is_inputs_not_match
       || is_instance_has_two_outpus
     {
-      println!("1");
       return Err(NovaError::ProofVerifyError);
     }
 
@@ -595,11 +614,8 @@ where
     if hash_primary != self.l_u_secondary.X[0]
       || hash_secondary != scalar_as_base::<E2>(self.l_u_secondary.X[1])
     {
-      println!("2");
       return Err(NovaError::ProofVerifyError);
     }
-
-    println!("3");
 
     // check the satisfiability of the provided instances
     let (res_r_primary, (res_r_secondary, res_l_secondary)) = rayon::join(
@@ -1184,10 +1200,11 @@ mod tests {
       &test_circuit2,
       &[<E1 as Engine>::Scalar::ZERO],
       &[<E2 as Engine>::Scalar::ZERO],
+      None,
     )
     .unwrap();
 
-    let res = recursive_snark.prove_step(&pp, &test_circuit1, &test_circuit2);
+    let res = recursive_snark.prove_step(&pp, &test_circuit1, &test_circuit2, None, vec![]);
 
     assert!(res.is_ok());
 
@@ -1246,11 +1263,12 @@ mod tests {
       &circuit_secondary,
       &[<E1 as Engine>::Scalar::ONE],
       &[<E2 as Engine>::Scalar::ZERO],
+      None,
     )
     .unwrap();
 
     for i in 0..num_steps {
-      let res = recursive_snark.prove_step(&pp, &circuit_primary, &circuit_secondary);
+      let res = recursive_snark.prove_step(&pp, &circuit_primary, &circuit_secondary, None, vec![]);
       assert!(res.is_ok());
 
       // verify the recursive snark at each step of recursion
@@ -1331,11 +1349,12 @@ mod tests {
       &circuit_secondary,
       &[<E1 as Engine>::Scalar::ONE],
       &[<E2 as Engine>::Scalar::ZERO],
+      None,
     )
     .unwrap();
 
     for _i in 0..num_steps {
-      let res = recursive_snark.prove_step(&pp, &circuit_primary, &circuit_secondary);
+      let res = recursive_snark.prove_step(&pp, &circuit_primary, &circuit_secondary, None, vec![]);
       assert!(res.is_ok());
     }
 
@@ -1605,12 +1624,13 @@ mod tests {
       &circuit_secondary,
       &z0_primary,
       &z0_secondary,
+      None,
     )
     .unwrap();
 
     let mut ii = 0;
     for circuit_primary in roots.iter().take(num_steps) {
-      let res = recursive_snark.prove_step(&pp, circuit_primary, &circuit_secondary);
+      let res = recursive_snark.prove_step(&pp, circuit_primary, &circuit_secondary, None, vec![]);
       //      println!("res {:#?}", res);
       assert!(res.is_ok());
 
@@ -1686,11 +1706,12 @@ mod tests {
       &test_circuit2,
       &[<E1 as Engine>::Scalar::ONE],
       &[<E2 as Engine>::Scalar::ZERO],
+      None,
     )
     .unwrap();
 
     // produce a recursive SNARK
-    let res = recursive_snark.prove_step(&pp, &test_circuit1, &test_circuit2);
+    let res = recursive_snark.prove_step(&pp, &test_circuit1, &test_circuit2, None, vec![]);
 
     assert!(res.is_ok());
 

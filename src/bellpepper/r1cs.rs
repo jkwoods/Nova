@@ -20,7 +20,7 @@ pub trait NovaWitness<E: Engine> {
     &self,
     shape: &R1CSShape<E>,
     ck: &CommitmentKey<E>,
-    blinds: Option<&[E::Scalar]>,
+    blind: Option<E::Scalar>,
   ) -> Result<(R1CSInstance<E>, R1CSWitness<E>), NovaError>;
 }
 
@@ -43,7 +43,7 @@ impl<E: Engine> NovaWitness<E> for SatisfyingAssignment<E> {
     &self,
     shape: &R1CSShape<E>,
     ck: &CommitmentKey<E>,
-    blinds: Option<&[E::Scalar]>,
+    blind: Option<E::Scalar>,
   ) -> Result<(R1CSInstance<E>, R1CSWitness<E>), NovaError> {
     let long_wit = self.aux_assignment();
 
@@ -56,16 +56,19 @@ impl<E: Engine> NovaWitness<E> for SatisfyingAssignment<E> {
       div_wit.push(&long_wit[start..end]);
     }
 
-    let mut r = Vec::new();
-    let r_W = if blinds.is_some() {
-      blinds.unwrap()
-    } else {
-      for _i in 0..shape.num_split_vars.len() {
-        r.push(E::Scalar::random(&mut OsRng));
-      }
-      &r
-    };
-    let W = R1CSWitness::<E>::new(shape, div_wit, r_W)?;
+    let mut r_W = Vec::new();
+    if shape.num_split_vars.len() == 2 && blind.is_some() {
+      r_W.push(blind.unwrap());
+    } else if shape.num_split_vars.len() == 3 && blind.is_some() {
+      r_W.push(E::Scalar::random(&mut OsRng));
+      r_W.push(blind.unwrap());
+    }
+
+    while r_W.len() < shape.num_split_vars.len() {
+      r_W.push(E::Scalar::random(&mut OsRng));
+    }
+
+    let W = R1CSWitness::<E>::new(shape, div_wit, &r_W)?;
     let X = &self.input_assignment()[1..];
 
     let comm_W = W.commit(ck);

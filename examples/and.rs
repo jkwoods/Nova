@@ -272,12 +272,13 @@ fn main() {
         &circuit_secondary,
         &[<E1 as Engine>::Scalar::zero()],
         &[<E2 as Engine>::Scalar::zero()],
+        None,
       )
       .unwrap();
 
     let start = Instant::now();
     for circuit_primary in circuits.iter() {
-      let res = recursive_snark.prove_step(&pp, circuit_primary, &circuit_secondary);
+      let res = recursive_snark.prove_step(&pp, circuit_primary, &circuit_secondary, None, vec![]);
       assert!(res.is_ok());
     }
     println!(

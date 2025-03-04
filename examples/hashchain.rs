@@ -170,12 +170,13 @@ fn main() {
         &circuit_secondary,
         &[<E1 as Engine>::Scalar::zero()],
         &[<E2 as Engine>::Scalar::zero()],
+        None,
       )
       .unwrap();
 
     for (i, circuit_primary) in circuits.iter().enumerate() {
       let start = Instant::now();
-      let res = recursive_snark.prove_step(&pp, circuit_primary, &circuit_secondary);
+      let res = recursive_snark.prove_step(&pp, circuit_primary, &circuit_secondary, None, vec![]);
       assert!(res.is_ok());
 
       println!("RecursiveSNARK::prove {} : took {:?} ", i, start.elapsed());

@@ -61,6 +61,8 @@ where
 
     let blind = E1::Scalar::random(&mut OsRng);
     let ped_cmt = E1::CE::commit(&self.ped_gen, w, &blind);
+
+    println!("IC Commit ped ci {:#?}", ped_cmt.clone());
     let ped_coords = ped_cmt.to_coordinates();
 
     cc.absorb(ped_coords.0);
