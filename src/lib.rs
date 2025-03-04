@@ -1186,7 +1186,7 @@ mod tests {
       &test_circuit2,
       &*default_ck_hint(),
       &*default_ck_hint(),
-      3,
+      0,
       &[],
     )
     .unwrap();
@@ -1244,7 +1244,7 @@ mod tests {
       &circuit_secondary,
       &*default_ck_hint(),
       &*default_ck_hint(),
-      3,
+      0,
       &[],
     )
     .unwrap();
@@ -1330,7 +1330,7 @@ mod tests {
       &circuit_secondary,
       &*default_ck_hint(),
       &*default_ck_hint(),
-      3,
+      0,
       &[],
     )
     .unwrap();
@@ -1596,7 +1596,7 @@ mod tests {
       &circuit_secondary,
       &*default_ck_hint(),
       &*default_ck_hint(),
-      3,
+      0,
       &[],
     )
     .unwrap();
@@ -1687,7 +1687,7 @@ mod tests {
       &test_circuit2,
       &*default_ck_hint(),
       &*default_ck_hint(),
-      3,
+      0,
       &[],
     )
     .unwrap();
@@ -1773,7 +1773,7 @@ mod tests {
         &TrivialCircuit::default(),
         &*default_ck_hint(),
         &*default_ck_hint(),
-        3,
+        0,
         &[],
       );
     assert!(pp.is_err());
@@ -1787,7 +1787,7 @@ mod tests {
         &circuit,
         &*default_ck_hint(),
         &*default_ck_hint(),
-        3,
+        0,
         &[],
       );
     assert!(pp.is_err());
