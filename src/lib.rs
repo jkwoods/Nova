@@ -287,6 +287,7 @@ where
     z0_primary: &[E1::Scalar],
     z0_secondary: &[E2::Scalar],
     ram_blind: Option<E1::Scalar>,
+    ram_hints: Vec<E1::Scalar>,
   ) -> Result<Self, NovaError> {
     if z0_primary.len() != pp.F_arity_primary || z0_secondary.len() != pp.F_arity_secondary {
       return Err(NovaError::InvalidInitialInputLength);
@@ -302,7 +303,7 @@ where
       E1::Scalar::ZERO,
       z0_primary.to_vec(),
       None,
-      None,
+      Some(ram_hints),
       None,
       None,
       None,
