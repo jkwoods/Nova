@@ -51,7 +51,7 @@ where
   // TODO: iron out return type
   /// commit incrementally to chunk of list
   pub fn commit(&self, c_i: Option<E2::Scalar>, w: &[E1::Scalar]) -> (E2::Scalar, E1::Scalar) {
-    let mut cc = E1::RO::new(self.pos_constants.clone(), 4);
+    let mut cc = E1::RO::new(self.pos_constants.clone(), 1);
 
     if c_i.is_none() {
       cc.absorb(E2::Scalar::ZERO);
@@ -65,14 +65,22 @@ where
     println!("IC Commit ped ci {:#?}", ped_cmt.clone());
     let ped_coords = ped_cmt.to_coordinates();
 
-    cc.absorb(ped_coords.0);
-    cc.absorb(ped_coords.1);
-    cc.absorb(if ped_coords.2 {
-      E2::Scalar::ONE
-    } else {
-      E2::Scalar::ZERO
-    });
+    //    cc.absorb(scalar_as_base::<E2>(ped_coords.0));
+    //    cc.absorb(scalar_as_base::<E2>(ped_coords.1));
+    /*    cc.absorb(if ped_coords.2 {
+          E1::Scalar::ONE
+        } else {
+          E1::Scalar::ZERO
+        });
+    */
+    let cc_hash = cc.squeeze(NUM_HASH_BITS);
+    println!(
+      "hash in commit {:#?} sab {:#?}",
+      cc_hash.clone(),
+      scalar_as_base::<E1>(cc_hash.clone())
+    );
 
-    (scalar_as_base::<E1>(cc.squeeze(NUM_HASH_BITS)), blind)
+    //(cc_hash, blind)
+    (scalar_as_base::<E1>(cc_hash), blind)
   }
 }

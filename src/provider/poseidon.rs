@@ -213,10 +213,13 @@ mod tests {
     // Check that the number computed inside the circuit is equal to the number computed outside the circuit
     let mut csprng: OsRng = OsRng;
     let constants = PoseidonConstantsCircuit::<E::Scalar>::default();
+
+    let constants2 = PoseidonConstantsCircuit::<E::Scalar>::default();
+
     let num_absorbs = 32;
     let mut ro: PoseidonRO<E::Scalar, E::Base> = PoseidonRO::new(constants.clone(), num_absorbs);
     let mut ro_gadget: PoseidonROCircuit<E::Scalar> =
-      PoseidonROCircuit::new(constants, num_absorbs);
+      PoseidonROCircuit::new(constants2, num_absorbs);
     let mut cs = SatisfyingAssignment::<E>::new();
     for i in 0..num_absorbs {
       let num = E::Scalar::random(&mut csprng);

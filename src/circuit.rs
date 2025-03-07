@@ -166,7 +166,6 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
         })
       })
       .collect::<Result<Vec<AllocatedNum<E::Base>>, _>>()?;
-    println!("RAM HINTS LEN {:#?}", ram_hints.len());
 
     // Allocate rest of z0
     z_0.extend(
@@ -302,7 +301,6 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
       ro.absorb(e);
     }
     if self.accumulate_cmts {
-      // println!("absorbing C_i nbc {:#?}", C_i.clone().unwrap().get_value());
       ro.absorb(C_i.as_ref().unwrap());
     }
     U.absorb_in_ro(cs.namespace(|| "absorb U"), &mut ro)?;
@@ -430,22 +428,20 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
       assert!(U.W.len() > 1);
       let mut cc = E::ROCircuit::new(
         self.ro_consts.clone(), // TODO?
-        4,
+        1,
       );
-      println!("absorbing C_i nbc {:#?}", C_i.clone().unwrap().get_value());
 
       cc.absorb(C_i.as_ref().unwrap());
 
       // hardcode the location for now
-      cc.absorb(&U.W[1].x);
-      cc.absorb(&U.W[1].y);
-      cc.absorb(&U.W[1].is_infinity);
-
+      /*cc.absorb(&U.W[1].x);
+            cc.absorb(&U.W[1].y);
+            cc.absorb(&U.W[1].is_infinity);
+      */
       let cc_hash_bits = cc.squeeze(cs.namespace(|| "cc output hash bits"), NUM_HASH_BITS)?;
-      Some(le_bits_to_num(
-        cs.namespace(|| "cc convert hash to num"),
-        &cc_hash_bits,
-      )?)
+      let hash_num = le_bits_to_num(cs.namespace(|| "cc convert hash to num"), &cc_hash_bits)?;
+
+      Some(hash_num)
     } else {
       None
     };
@@ -465,11 +461,6 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
       ro.absorb(e);
     }
     if self.accumulate_cmts {
-      /* println!(
-        "absorbing C_i out {:#?}",
-        C_next.clone().unwrap().get_value()
-      );*/
-
       ro.absorb(C_next.as_ref().unwrap());
     }
     Unew.absorb_in_ro(cs.namespace(|| "absorb U_new"), &mut ro)?;

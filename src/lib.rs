@@ -1202,6 +1202,7 @@ mod tests {
       &[<E1 as Engine>::Scalar::ZERO],
       &[<E2 as Engine>::Scalar::ZERO],
       None,
+      vec![],
     )
     .unwrap();
 
@@ -1265,6 +1266,7 @@ mod tests {
       &[<E1 as Engine>::Scalar::ONE],
       &[<E2 as Engine>::Scalar::ZERO],
       None,
+      vec![],
     )
     .unwrap();
 
@@ -1351,6 +1353,7 @@ mod tests {
       &[<E1 as Engine>::Scalar::ONE],
       &[<E2 as Engine>::Scalar::ZERO],
       None,
+      vec![],
     )
     .unwrap();
 
@@ -1626,6 +1629,7 @@ mod tests {
       &z0_primary,
       &z0_secondary,
       None,
+      vec![],
     )
     .unwrap();
 
@@ -1708,6 +1712,7 @@ mod tests {
       &[<E1 as Engine>::Scalar::ONE],
       &[<E2 as Engine>::Scalar::ZERO],
       None,
+      vec![],
     )
     .unwrap();
 
