@@ -20,7 +20,7 @@ pub trait NovaWitness<E: Engine> {
     &self,
     shape: &R1CSShape<E>,
     ck: &CommitmentKey<E>,
-    blind: Option<E::Scalar>,
+    blind: Option<Vec<E::Scalar>>,
   ) -> Result<(R1CSInstance<E>, R1CSWitness<E>), NovaError>;
 }
 
@@ -43,7 +43,7 @@ impl<E: Engine> NovaWitness<E> for SatisfyingAssignment<E> {
     &self,
     shape: &R1CSShape<E>,
     ck: &CommitmentKey<E>,
-    blind: Option<E::Scalar>,
+    blind: Option<Vec<E::Scalar>>,
   ) -> Result<(R1CSInstance<E>, R1CSWitness<E>), NovaError> {
     let long_wit = self.aux_assignment();
 
@@ -57,11 +57,9 @@ impl<E: Engine> NovaWitness<E> for SatisfyingAssignment<E> {
     }
 
     let mut r_W = Vec::new();
-    if shape.num_split_vars.len() == 2 && blind.is_some() {
-      r_W.push(blind.unwrap());
-    } else if shape.num_split_vars.len() == 3 && blind.is_some() {
-      r_W.push(E::Scalar::random(&mut OsRng));
-      r_W.push(blind.unwrap());
+
+    if blind.is_some() {
+      r_W.extend(blind.unwrap());
     }
 
     while r_W.len() < shape.num_split_vars.len() {
@@ -102,7 +100,7 @@ macro_rules! impl_nova_shape {
         let num_constraints = self.num_constraints();
 
         let num_vars = if custom_shape {
-          vec![1, ram_batch_size, self.num_aux() - 1 - ram_batch_size]
+          vec![ram_batch_size, self.num_aux() - ram_batch_size]
         } else {
           vec![self.num_aux()]
         };

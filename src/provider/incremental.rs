@@ -6,7 +6,7 @@ use crate::{
     commitment::{CommitmentEngineTrait, CommitmentTrait, GetGeneratorsTrait},
     ROCircuitTrait, ROTrait,
   },
-  CommitmentKey, Engine, ROConstants, NUM_HASH_BITS,
+  Commitment, CommitmentKey, Engine, ROConstants, NUM_HASH_BITS,
 };
 use ff::Field;
 use rand_core::OsRng;
@@ -30,15 +30,10 @@ where
   E1::GE: DlogGroup,
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
-  CommitmentKey<E1>: GetGeneratorsTrait<E1>,
 {
   /// setup generators
-  pub fn setup(label: &'static [u8], ck_s: &CommitmentKey<E1>, size: usize) -> Self {
-    let h = ck_s.get_h().clone();
-    let pg = E1::GE::from_label(label, (2usize).pow(size as u32));
-    let ped_gen = CommitmentKey::<E1>::from_gens(pg, Some(h));
-
-    // ROCC<E1> (to match secondary)
+  pub fn setup(label: &'static [u8], size: usize) -> Self {
+    let ped_gen = E1::CE::setup(label, size);
     let pos_constants: ROConstants<E1> = ROConstants::<E1>::default();
 
     Incremental::<E1, E2> {
@@ -48,10 +43,9 @@ where
     }
   }
 
-  // TODO: iron out return type
   /// commit incrementally to chunk of list
   pub fn commit(&self, c_i: Option<E2::Scalar>, w: &[E1::Scalar]) -> (E2::Scalar, E1::Scalar) {
-    let mut cc = E1::RO::new(self.pos_constants.clone(), 1);
+    let mut cc = E1::RO::new(self.pos_constants.clone(), 4);
 
     if c_i.is_none() {
       cc.absorb(E2::Scalar::ZERO);
@@ -62,25 +56,22 @@ where
     let blind = E1::Scalar::random(&mut OsRng);
     let ped_cmt = E1::CE::commit(&self.ped_gen, w, &blind);
 
-    println!("IC Commit ped ci {:#?}", ped_cmt.clone());
+    println!("cmt in clear {:#?}", ped_cmt);
+
     let ped_coords = ped_cmt.to_coordinates();
+    println!("x {:#?}", ped_coords.0);
 
-    //    cc.absorb(scalar_as_base::<E2>(ped_coords.0));
-    //    cc.absorb(scalar_as_base::<E2>(ped_coords.1));
-    /*    cc.absorb(if ped_coords.2 {
-          E1::Scalar::ONE
-        } else {
-          E1::Scalar::ZERO
-        });
-    */
+    cc.absorb(ped_coords.0);
+    cc.absorb(ped_coords.1);
+    cc.absorb(if ped_coords.2 {
+      E2::Scalar::ONE
+    } else {
+      E2::Scalar::ZERO
+    });
+
     let cc_hash = cc.squeeze(NUM_HASH_BITS);
-    println!(
-      "hash in commit {:#?} sab {:#?}",
-      cc_hash.clone(),
-      scalar_as_base::<E1>(cc_hash.clone())
-    );
+    println!("hash in clear {:#?}", scalar_as_base::<E1>(cc_hash));
 
-    //(cc_hash, blind)
     (scalar_as_base::<E1>(cc_hash), blind)
   }
 }

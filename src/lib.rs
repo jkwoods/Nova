@@ -149,12 +149,12 @@ where
     let augmented_circuit_params_primary =
       NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true, 1, ram_batch_size);
     let augmented_circuit_params_secondary =
-      NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false, 3, 0);
+      NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false, 2, 0);
 
     let ro_consts_primary: ROConstants<E1> = ROConstants::<E1>::default();
     let ro_consts_secondary: ROConstants<E2> = ROConstants::<E2>::default();
 
-    let F_arity_primary = c_primary.arity();
+    let F_arity_primary = c_primary.arity() - ram_batch_size; // todo multiple
     let F_arity_secondary = c_secondary.arity();
 
     // ro_consts_circuit_primary are parameterized by E2 because the type alias uses E2::Base = E1::Scalar
@@ -268,7 +268,7 @@ where
   i: usize,
   zi_primary: Vec<E1::Scalar>,
   zi_secondary: Vec<E2::Scalar>,
-  Ci: E2::Scalar,
+  Ci: Vec<E2::Scalar>,
   _p: PhantomData<(C1, C2)>,
 }
 
@@ -286,8 +286,8 @@ where
     c_secondary: &C2,
     z0_primary: &[E1::Scalar],
     z0_secondary: &[E2::Scalar],
-    ram_blind: Option<E1::Scalar>,
-    ram_hints: Vec<E1::Scalar>,
+    ram_blind: Option<Vec<E1::Scalar>>, // len == # accumulations
+    ram_hints: Vec<E1::Scalar>,         // todo: # vec == # accumulations
   ) -> Result<Self, NovaError> {
     if z0_primary.len() != pp.F_arity_primary || z0_secondary.len() != pp.F_arity_secondary {
       return Err(NovaError::InvalidInitialInputLength);
@@ -322,8 +322,8 @@ where
     let (zi_primary, _) = circuit_primary.synthesize(&mut cs_primary)?;
     let (u_primary, w_primary) =
       cs_primary.r1cs_instance_and_witness(&pp.r1cs_shape_primary, &pp.ck_primary, ram_blind)?;
-    println!("new wit {:#?}, {:#?}", w_primary.W[0], w_primary.W[1]);
-    println!("cmt ram {:#?}", u_primary.comm_W[1]);
+    println!("new wit {:#?}", w_primary.W[0]);
+    println!("cmt ram {:#?}", u_primary.comm_W[0]);
 
     // base case for the secondary
     let mut cs_secondary = SatisfyingAssignment::<E2>::new();
@@ -380,6 +380,12 @@ where
       .map(|v| v.get_value().ok_or(SynthesisError::AssignmentMissing))
       .collect::<Result<Vec<<E2 as Engine>::Scalar>, _>>()?;
 
+    let Ci = C_next
+      .unwrap()
+      .iter()
+      .map(|v| v.get_value().ok_or(SynthesisError::AssignmentMissing))
+      .collect::<Result<Vec<<E2 as Engine>::Scalar>, _>>()?;
+
     Ok(Self {
       z0_primary: z0_primary.to_vec(),
       z0_secondary: z0_secondary.to_vec(),
@@ -394,10 +400,7 @@ where
       i: 0,
       zi_primary,
       zi_secondary,
-      Ci: C_next
-        .unwrap()
-        .get_value()
-        .ok_or(SynthesisError::AssignmentMissing)?,
+      Ci,
       _p: Default::default(),
     })
   }
@@ -409,7 +412,7 @@ where
     pp: &PublicParams<E1, E2, C1, C2>,
     c_primary: &C1,
     c_secondary: &C2,
-    ram_blind: Option<E1::Scalar>,
+    ram_blind: Option<Vec<E1::Scalar>>,
     ram_hints: Vec<E1::Scalar>,
   ) -> Result<(), NovaError> {
     // first step was already done in the constructor
@@ -458,11 +461,8 @@ where
 
     let (l_u_primary, l_w_primary) =
       cs_primary.r1cs_instance_and_witness(&pp.r1cs_shape_primary, &pp.ck_primary, ram_blind)?;
-    println!(
-      "prove step wit {:#?}, {:#?}",
-      l_w_primary.W[0], l_w_primary.W[1]
-    );
-    println!("cmt ram {:#?}", l_u_primary.comm_W[1]);
+    println!("prove step wit {:#?}", l_w_primary.W[0]);
+    println!("cmt ram {:#?}", l_u_primary.comm_W[0]);
 
     // fold the primary circuit's instance
     let (nifs_primary, (r_U_primary, r_W_primary)) = NIFS::prove(
@@ -485,7 +485,7 @@ where
       self.z0_secondary.to_vec(),
       Some(self.zi_secondary.clone()),
       Some(vec![]),
-      Some(self.Ci),
+      Some(self.Ci.clone()),
       Some(self.r_U_primary.clone()),
       Some(self.ri_secondary),
       r_next_secondary,
@@ -532,8 +532,9 @@ where
 
     self.Ci = C_next
       .unwrap()
-      .get_value()
-      .ok_or(SynthesisError::AssignmentMissing)?;
+      .iter()
+      .map(|v| v.get_value().ok_or(SynthesisError::AssignmentMissing))
+      .collect::<Result<Vec<<E2 as Engine>::Scalar>, _>>()?;
 
     Ok(())
   }
@@ -602,7 +603,9 @@ where
       for e in &self.zi_secondary {
         hasher2.absorb(*e);
       }
-      hasher2.absorb(self.Ci);
+      for ci in &self.Ci {
+        hasher2.absorb(*ci);
+      }
       self.r_U_primary.absorb_in_ro(&mut hasher2);
       hasher2.absorb(self.ri_secondary);
 
@@ -742,7 +745,7 @@ where
   zn_secondary: Vec<E2::Scalar>,
 
   /// public for acc check
-  pub Ci: E2::Scalar,
+  pub Ci: Vec<E2::Scalar>,
 
   _p: PhantomData<(C1, C2)>,
 }
@@ -971,7 +974,9 @@ where
       for e in &self.zn_secondary {
         hasher2.absorb(*e);
       }
-      hasher2.absorb(self.Ci);
+      for ci in &self.Ci {
+        hasher2.absorb(*ci);
+      }
       self.r_U_primary.absorb_in_ro(&mut hasher2);
       hasher2.absorb(self.ri_secondary);
 

@@ -273,6 +273,7 @@ fn main() {
         &[<E1 as Engine>::Scalar::zero()],
         &[<E2 as Engine>::Scalar::zero()],
         None,
+        vec![],
       )
       .unwrap();
 

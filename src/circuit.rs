@@ -63,7 +63,7 @@ pub struct NovaAugmentedCircuitInputs<E: Engine> {
   z0: Vec<E::Base>,
   zi: Option<Vec<E::Base>>,
   ram_hints: Option<Vec<E::Base>>,
-  Ci: Option<E::Base>,
+  Ci: Option<Vec<E::Base>>,
   U: Option<RelaxedR1CSInstance<E>>,
   ri: Option<E::Base>,
   r_next: E::Base,
@@ -79,7 +79,7 @@ impl<E: Engine> NovaAugmentedCircuitInputs<E> {
     z0: Vec<E::Base>,
     zi: Option<Vec<E::Base>>,
     ram_hints: Option<Vec<E::Base>>,
-    Ci: Option<E::Base>,
+    Ci: Option<Vec<E::Base>>,
     U: Option<RelaxedR1CSInstance<E>>,
     ri: Option<E::Base>,
     r_next: E::Base,
@@ -135,6 +135,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     &self,
     mut cs: CS,
     arity: usize,
+    ram_batch_size: usize,
   ) -> Result<
     (
       AllocatedNum<E::Base>,
@@ -142,7 +143,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
       Vec<AllocatedNum<E::Base>>,
       Vec<AllocatedNum<E::Base>>,
       Vec<AllocatedNum<E::Base>>,
-      Option<AllocatedNum<E::Base>>,
+      Option<Vec<AllocatedNum<E::Base>>>,
       AllocatedRelaxedR1CSInstance<E>,
       AllocatedNum<E::Base>,
       AllocatedNum<E::Base>,
@@ -151,15 +152,9 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     ),
     SynthesisError,
   > {
-    // Allocate v (from z0)
-    let mut z_0 = vec![AllocatedNum::alloc(
-      cs.namespace(|| format!("z0_0")),
-      || Ok(self.inputs.get()?.z0[0]),
-    )?];
-
     // Allocate ram cmt wits (from z_i+1, supplied here with some prover help)
-    let zero = vec![E::Base::ZERO; self.params.ram_batch_size];
-    let ram_hints = (0..self.params.ram_batch_size)
+    let zero = vec![E::Base::ZERO; ram_batch_size];
+    let ram_hints = (0..ram_batch_size)
       .map(|i| {
         AllocatedNum::alloc(cs.namespace(|| format!("ram_hints_{i}")), || {
           Ok(self.inputs.get()?.ram_hints.as_ref().unwrap_or(&zero)[i])
@@ -167,23 +162,27 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
       })
       .collect::<Result<Vec<AllocatedNum<E::Base>>, _>>()?;
 
-    // Allocate rest of z0
-    z_0.extend(
-      (1..arity)
-        .map(|i| {
-          AllocatedNum::alloc(cs.namespace(|| format!("z0_{i}")), || {
-            Ok(self.inputs.get()?.z0[i])
-          })
+    // Allocate z0
+    let z_0 = (0..arity)
+      .map(|i| {
+        AllocatedNum::alloc(cs.namespace(|| format!("z0_{i}")), || {
+          Ok(self.inputs.get()?.z0[i])
         })
-        .collect::<Result<Vec<AllocatedNum<E::Base>>, _>>()?,
-    );
+      })
+      .collect::<Result<Vec<AllocatedNum<E::Base>>, _>>()?;
 
     // Allocated Ci (only if split)
+    let zero = vec![E::Base::ZERO; self.params.num_split_witnesses - 1];
     let C_i = if self.accumulate_cmts {
-      Some(AllocatedNum::alloc(
-        cs.namespace(|| format!("C_i")),
-        || Ok(self.inputs.get()?.Ci.unwrap_or(E::Base::ZERO)),
-      )?)
+      Some(
+        (0..(self.params.num_split_witnesses - 1))
+          .map(|i| {
+            AllocatedNum::alloc(cs.namespace(|| format!("Ci_{i}")), || {
+              Ok(self.inputs.get()?.Ci.as_ref().unwrap_or(&zero)[i])
+            })
+          })
+          .collect::<Result<Vec<AllocatedNum<E::Base>>, _>>()?,
+      )
     } else {
       None
     };
@@ -199,6 +198,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
 
     // Allocate zi. If inputs.zi is not provided (base case) allocate default value 0
     let zero = vec![E::Base::ZERO; arity];
+
     let z_i = (0..arity)
       .map(|i| {
         AllocatedNum::alloc(cs.namespace(|| format!("zi_{i}")), || {
@@ -279,7 +279,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     i: &AllocatedNum<E::Base>,
     z_0: &[AllocatedNum<E::Base>],
     z_i: &[AllocatedNum<E::Base>],
-    C_i: &Option<AllocatedNum<E::Base>>,
+    C_i: &Option<Vec<AllocatedNum<E::Base>>>,
     U: &AllocatedRelaxedR1CSInstance<E>,
     r_i: &AllocatedNum<E::Base>,
     u: &AllocatedR1CSInstance<E>,
@@ -289,7 +289,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     // Check that u.x[0] = Hash(params, U, i, z0, zi)
     let mut ro_num = NUM_FE_WITHOUT_IO_WIT_FOR_CRHF + 2 * arity + 3 * U.W.len();
     if self.accumulate_cmts {
-      ro_num += 1
+      ro_num += C_i.as_ref().unwrap().len();
     };
     let mut ro = E::ROCircuit::new(self.ro_consts.clone(), ro_num);
     ro.absorb(params);
@@ -301,7 +301,9 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
       ro.absorb(e);
     }
     if self.accumulate_cmts {
-      ro.absorb(C_i.as_ref().unwrap());
+      for c in C_i.as_ref().unwrap() {
+        ro.absorb(c);
+      }
     }
     U.absorb_in_ro(cs.namespace(|| "absorb U"), &mut ro)?;
     ro.absorb(r_i);
@@ -334,12 +336,22 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
   pub fn synthesize<CS: ConstraintSystem<<E as Engine>::Base>>(
     self,
     cs: &mut CS,
-  ) -> Result<(Vec<AllocatedNum<E::Base>>, Option<AllocatedNum<E::Base>>), SynthesisError> {
-    let arity = self.step_circuit.arity();
+  ) -> Result<
+    (
+      Vec<AllocatedNum<E::Base>>,
+      Option<Vec<AllocatedNum<E::Base>>>,
+    ),
+    SynthesisError,
+  > {
+    let ram_batch_size = self.params.ram_batch_size;
+    let arity = self.step_circuit.arity() - ram_batch_size;
 
     // Allocate all witnesses
-    let (params, i, z_0, z_i, ram_hints, C_i, U, r_i, r_next, u, T) =
-      self.alloc_witness(cs.namespace(|| "allocate the circuit witness"), arity)?;
+    let (params, i, z_0, z_i, ram_hints, C_i, U, r_i, r_next, u, T) = self.alloc_witness(
+      cs.namespace(|| "allocate the circuit witness"),
+      arity,
+      ram_batch_size,
+    )?;
 
     // Compute variable indicating if this is the base case
     let zero = alloc_zero(cs.namespace(|| "zero"));
@@ -403,17 +415,26 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
       &Boolean::from(is_base_case),
     )?;
 
-    let z_next = self
-      .step_circuit
-      .synthesize(&mut cs.namespace(|| "F"), &z_input)?;
+    // ram coming in is never looked at - no need to hook up
+    let mut z_input_full = (0..ram_batch_size)
+      .map(|i| AllocatedNum::alloc(cs.namespace(|| format!("ram_in_{i}")), || Ok(E::Base::ZERO)))
+      .collect::<Result<Vec<AllocatedNum<E::Base>>, _>>()?;
+    z_input_full.extend(z_input);
 
-    // make sure ram hints are tied in
+    let z_next_full = self
+      .step_circuit
+      .synthesize(&mut cs.namespace(|| "F"), &z_input_full)?;
+
+    let ram_from_z = &z_next_full[0..ram_batch_size];
+    let z_next = &z_next_full[ram_batch_size..];
+
+    // make sure ram hints are tied in // TODO for mult cmts
     for j in 0..ram_hints.len() {
       cs.enforce(
         || format!("ram hint {}", j),
         |lc| lc + ram_hints[j].get_variable(),
         |lc| lc + CS::one(),
-        |lc| lc + z_next[j + 1].get_variable(),
+        |lc| lc + ram_from_z[j].get_variable(),
       );
     }
 
@@ -423,25 +444,34 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
       ));
     }
 
-    // Accumulate Commitment
+    // Accumulate Commitments
     let C_next = if self.accumulate_cmts {
+      let mut cmts = Vec::new();
       assert!(U.W.len() > 1);
-      let mut cc = E::ROCircuit::new(
-        self.ro_consts.clone(), // TODO?
-        1,
-      );
 
-      cc.absorb(C_i.as_ref().unwrap());
+      for wi in 0..(u.W.len() - 1) {
+        let mut cc = E::ROCircuit::new(
+          self.ro_consts.clone(), // TODO?
+          4,
+        );
 
-      // hardcode the location for now
-      /*cc.absorb(&U.W[1].x);
-            cc.absorb(&U.W[1].y);
-            cc.absorb(&U.W[1].is_infinity);
-      */
-      let cc_hash_bits = cc.squeeze(cs.namespace(|| "cc output hash bits"), NUM_HASH_BITS)?;
-      let hash_num = le_bits_to_num(cs.namespace(|| "cc convert hash to num"), &cc_hash_bits)?;
+        cc.absorb(&C_i.as_ref().unwrap()[wi]);
+        println!("absorb in circ {:#?}", C_i.clone().unwrap()[wi].get_value());
 
-      Some(hash_num)
+        cc.absorb(&u.W[wi].x);
+        cc.absorb(&u.W[wi].y);
+        cc.absorb(&u.W[wi].is_infinity);
+
+        println!("cmt in circ s {:#?}", u.W[wi].x.get_value().clone());
+
+        let cc_hash_bits = cc.squeeze(cs.namespace(|| "cc output hash bits"), NUM_HASH_BITS)?;
+        let hash_num = le_bits_to_num(cs.namespace(|| "cc convert hash to num"), &cc_hash_bits)?;
+
+        println!("hash num in circ {:#?}", hash_num.clone());
+
+        cmts.push(hash_num);
+      }
+      Some(cmts)
     } else {
       None
     };
@@ -449,7 +479,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     // Compute the new hash H(params, Unew, i+1, z0, z_{i+1})
     let mut ro_num = NUM_FE_WITHOUT_IO_WIT_FOR_CRHF + 2 * arity + 3 * Unew.W.len();
     if self.accumulate_cmts {
-      ro_num += 1;
+      ro_num += C_i.as_ref().unwrap().len();
     }
     let mut ro = E::ROCircuit::new(self.ro_consts, ro_num);
     ro.absorb(&params);
@@ -457,11 +487,13 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     for e in &z_0 {
       ro.absorb(e);
     }
-    for e in &z_next {
+    for e in z_next {
       ro.absorb(e);
     }
     if self.accumulate_cmts {
-      ro.absorb(C_next.as_ref().unwrap());
+      for c in C_next.as_ref().unwrap() {
+        ro.absorb(c);
+      }
     }
     Unew.absorb_in_ro(cs.namespace(|| "absorb U_new"), &mut ro)?;
     ro.absorb(&r_next);
@@ -473,7 +505,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
       .inputize(cs.namespace(|| "Output unmodified hash of the other circuit"))?;
     hash.inputize(cs.namespace(|| "output new hash of this circuit"))?;
 
-    Ok((z_next, C_next))
+    Ok((z_next.to_vec(), C_next))
   }
 }
 

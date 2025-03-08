@@ -232,6 +232,7 @@ fn main() {
         &z0_primary,
         &z0_secondary,
         None,
+        vec![],
       )
       .unwrap();
 
