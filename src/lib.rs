@@ -548,11 +548,15 @@ where
     self.ri_primary = r_next_primary;
     self.ri_secondary = r_next_secondary;
 
-    self.Ci = C_next
-      .unwrap()
-      .iter()
-      .map(|v| v.get_value().ok_or(SynthesisError::AssignmentMissing))
-      .collect::<Result<Vec<<E2 as Engine>::Scalar>, _>>()?;
+    self.Ci = if C_next.is_some() {
+      C_next
+        .unwrap()
+        .iter()
+        .map(|v| v.get_value().ok_or(SynthesisError::AssignmentMissing))
+        .collect::<Result<Vec<<E2 as Engine>::Scalar>, _>>()?
+    } else {
+      vec![]
+    };
 
     Ok(())
   }
