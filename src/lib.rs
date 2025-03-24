@@ -146,6 +146,9 @@ where
     ram_batch_sizes: Vec<usize>,
     gen_start: &[&CommitmentKey<E1>],
   ) -> Result<Self, NovaError> {
+    let accumulate_cmts = ram_batch_sizes.len() > 0;
+    println!("ACC CMT {}", accumulate_cmts);
+
     let augmented_circuit_params_primary =
       NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true, 1, ram_batch_sizes.clone());
     let augmented_circuit_params_secondary = NovaAugmentedCircuitParams::new(
@@ -191,7 +194,7 @@ where
       None,
       c_secondary,
       ro_consts_circuit_secondary.clone(),
-      true,
+      accumulate_cmts,
     );
     let mut cs: ShapeCS<E2> = ShapeCS::new();
     let _ = circuit_secondary.synthesize(&mut cs);
@@ -302,6 +305,9 @@ where
     let ri_primary = E1::Scalar::random(&mut OsRng);
     let ri_secondary = E2::Scalar::random(&mut OsRng);
 
+    let accumulate_cmts = ram_hints.len() > 0;
+    println!("ACC CMS 2 {}", accumulate_cmts);
+
     // base case for the primary
     let mut cs_primary = SatisfyingAssignment::<E1>::new();
     let inputs_primary: NovaAugmentedCircuitInputs<E2> = NovaAugmentedCircuitInputs::new(
@@ -328,7 +334,7 @@ where
     let (zi_primary, _) = circuit_primary.synthesize(&mut cs_primary)?;
     let (u_primary, w_primary) =
       cs_primary.r1cs_instance_and_witness(&pp.r1cs_shape_primary, &pp.ck_primary, ram_blind)?;
-    println!("new wit {:#?}", w_primary.W[0]);
+    //println!("new wit {:#?}", w_primary.W[0]);
     println!("cmt ram {:#?}", u_primary.comm_W[0]);
 
     // base case for the secondary
@@ -351,7 +357,7 @@ where
       Some(inputs_secondary),
       c_secondary,
       pp.ro_consts_circuit_secondary.clone(),
-      true,
+      accumulate_cmts,
     );
     let (zi_secondary, C_next) = circuit_secondary.synthesize(&mut cs_secondary)?;
     let (u_secondary, w_secondary) =
@@ -386,11 +392,15 @@ where
       .map(|v| v.get_value().ok_or(SynthesisError::AssignmentMissing))
       .collect::<Result<Vec<<E2 as Engine>::Scalar>, _>>()?;
 
-    let Ci = C_next
-      .unwrap()
-      .iter()
-      .map(|v| v.get_value().ok_or(SynthesisError::AssignmentMissing))
-      .collect::<Result<Vec<<E2 as Engine>::Scalar>, _>>()?;
+    let Ci = if C_next.is_some() {
+      C_next
+        .unwrap()
+        .iter()
+        .map(|v| v.get_value().ok_or(SynthesisError::AssignmentMissing))
+        .collect::<Result<Vec<<E2 as Engine>::Scalar>, _>>()?
+    } else {
+      vec![]
+    };
 
     Ok(Self {
       z0_primary: z0_primary.to_vec(),
@@ -426,6 +436,8 @@ where
       self.i = 1;
       return Ok(());
     }
+
+    let accumulate_cmts = ram_hints.len() > 0;
 
     // fold the secondary circuit's instance
     let (nifs_secondary, (r_U_secondary, r_W_secondary)) = NIFS::prove(
@@ -467,7 +479,7 @@ where
 
     let (l_u_primary, l_w_primary) =
       cs_primary.r1cs_instance_and_witness(&pp.r1cs_shape_primary, &pp.ck_primary, ram_blind)?;
-    println!("prove step wit {:#?}", l_w_primary.W[0]);
+    //println!("prove step wit {:#?}", l_w_primary.W[0]);
     println!("cmt ram {:#?}", l_u_primary.comm_W[0]);
 
     // fold the primary circuit's instance
@@ -504,7 +516,7 @@ where
       Some(inputs_secondary),
       c_secondary,
       pp.ro_consts_circuit_secondary.clone(),
-      true,
+      accumulate_cmts,
     );
     let (zi_secondary, C_next) = circuit_secondary.synthesize(&mut cs_secondary)?;
 

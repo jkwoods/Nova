@@ -445,8 +445,10 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     }
 
     // Accumulate Commitments
+    println!("ACC CMT in func {}", self.accumulate_cmts);
     let C_next = if self.accumulate_cmts {
       let mut cmts = Vec::new();
+      assert!(!self.params.is_primary_circuit);
       assert!(u.W.len() > 1);
 
       for wi in 0..(u.W.len() - 1) {
