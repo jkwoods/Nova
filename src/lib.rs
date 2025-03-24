@@ -143,18 +143,23 @@ where
     c_secondary: &C2,
     ck_hint1: &CommitmentKeyHint<E1>,
     ck_hint2: &CommitmentKeyHint<E2>,
-    ram_batch_size: usize,
+    ram_batch_sizes: Vec<usize>,
     gen_start: &[&CommitmentKey<E1>],
   ) -> Result<Self, NovaError> {
     let augmented_circuit_params_primary =
-      NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true, 1, ram_batch_size);
-    let augmented_circuit_params_secondary =
-      NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false, 2, 0);
+      NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true, 1, ram_batch_sizes.clone());
+    let augmented_circuit_params_secondary = NovaAugmentedCircuitParams::new(
+      BN_LIMB_WIDTH,
+      BN_N_LIMBS,
+      false,
+      ram_batch_sizes.len() + 1,
+      vec![],
+    );
 
     let ro_consts_primary: ROConstants<E1> = ROConstants::<E1>::default();
     let ro_consts_secondary: ROConstants<E2> = ROConstants::<E2>::default();
 
-    let F_arity_primary = c_primary.arity() - ram_batch_size; // todo multiple
+    let F_arity_primary = c_primary.arity() - ram_batch_sizes.iter().sum::<usize>();
     let F_arity_secondary = c_secondary.arity();
 
     // ro_consts_circuit_primary are parameterized by E2 because the type alias uses E2::Base = E1::Scalar
@@ -171,7 +176,8 @@ where
     );
     let mut cs: ShapeCS<E1> = ShapeCS::new();
     let _ = circuit_primary.synthesize(&mut cs);
-    let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape(ck_hint1, true, ram_batch_size, gen_start);
+    let (r1cs_shape_primary, ck_primary) =
+      cs.r1cs_shape(ck_hint1, true, ram_batch_sizes, gen_start);
     println!("SETUP r1cs shape {:#?}", r1cs_shape_primary.num_split_vars);
     /*println!(
       "ck primary {:#?}, gen start {:#?}",
@@ -189,7 +195,7 @@ where
     );
     let mut cs: ShapeCS<E2> = ShapeCS::new();
     let _ = circuit_secondary.synthesize(&mut cs);
-    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape(ck_hint2, false, 0, &[]);
+    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape(ck_hint2, false, vec![], &[]);
 
     if r1cs_shape_primary.num_io != 2 || r1cs_shape_secondary.num_io != 2 {
       return Err(NovaError::InvalidStepCircuitIO);
@@ -593,7 +599,7 @@ where
         NUM_FE_WITHOUT_IO_WIT_FOR_CRHF
           + 2 * pp.F_arity_secondary
           + 3 * self.r_U_primary.comm_W.len()
-          + 1, //if Ci.is_some() { 1 } else { 0 },
+          + self.Ci.len(),
       );
       hasher2.absorb(scalar_as_base::<E1>(pp.digest()));
       hasher2.absorb(E2::Scalar::from(num_steps as u64));
@@ -1192,7 +1198,7 @@ mod tests {
       &test_circuit2,
       &*default_ck_hint(),
       &*default_ck_hint(),
-      0,
+      vec![],
       &[],
     )
     .unwrap();
@@ -1251,7 +1257,7 @@ mod tests {
       &circuit_secondary,
       &*default_ck_hint(),
       &*default_ck_hint(),
-      0,
+      vec![],
       &[],
     )
     .unwrap();
@@ -1338,7 +1344,7 @@ mod tests {
       &circuit_secondary,
       &*default_ck_hint(),
       &*default_ck_hint(),
-      0,
+      vec![],
       &[],
     )
     .unwrap();
@@ -1605,7 +1611,7 @@ mod tests {
       &circuit_secondary,
       &*default_ck_hint(),
       &*default_ck_hint(),
-      0,
+      vec![],
       &[],
     )
     .unwrap();
@@ -1697,7 +1703,7 @@ mod tests {
       &test_circuit2,
       &*default_ck_hint(),
       &*default_ck_hint(),
-      0,
+      vec![],
       &[],
     )
     .unwrap();
@@ -1784,7 +1790,7 @@ mod tests {
         &TrivialCircuit::default(),
         &*default_ck_hint(),
         &*default_ck_hint(),
-        0,
+        vec![],
         &[],
       );
     assert!(pp.is_err());
@@ -1798,7 +1804,7 @@ mod tests {
         &circuit,
         &*default_ck_hint(),
         &*default_ck_hint(),
-        0,
+        vec![],
         &[],
       );
     assert!(pp.is_err());

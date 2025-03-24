@@ -33,7 +33,7 @@ pub trait NovaShape<E: Engine> {
     &self,
     ck_hint: &CommitmentKeyHint<E>,
     custom_shape: bool,
-    ram_batch_size: usize,
+    ram_batch_size: Vec<usize>,
     gen_start: &[&CommitmentKey<E>],
   ) -> (R1CSShape<E>, CommitmentKey<E>);
 }
@@ -46,6 +46,12 @@ impl<E: Engine> NovaWitness<E> for SatisfyingAssignment<E> {
     blind: Option<Vec<E::Scalar>>,
   ) -> Result<(R1CSInstance<E>, R1CSWitness<E>), NovaError> {
     let long_wit = self.aux_assignment();
+
+    println!(
+      "LONG WIT LEN {} NUM SPLIT VARS {:#?}",
+      long_wit.len(),
+      shape.num_split_vars.len()
+    );
 
     let mut div_wit = Vec::new();
     let mut start = 0;
@@ -71,6 +77,8 @@ impl<E: Engine> NovaWitness<E> for SatisfyingAssignment<E> {
 
     let comm_W = W.commit(ck);
 
+    println!("COMM W LEN {}", comm_W.len());
+
     let instance = R1CSInstance::<E>::new(shape, &comm_W, X)?;
 
     Ok((instance, W))
@@ -87,7 +95,7 @@ macro_rules! impl_nova_shape {
         &self,
         ck_hint: &CommitmentKeyHint<E>,
         custom_shape: bool,
-        ram_batch_size: usize,
+        ram_batch_size: Vec<usize>,
         gen_start: &[&CommitmentKey<E>],
       ) -> (R1CSShape<E>, CommitmentKey<E>) {
         let mut A = SparseMatrix::<E::Scalar>::empty();
@@ -100,7 +108,10 @@ macro_rules! impl_nova_shape {
         let num_constraints = self.num_constraints();
 
         let num_vars = if custom_shape {
-          vec![ram_batch_size, self.num_aux() - ram_batch_size]
+          let mut nv = ram_batch_size.clone();
+          nv.push(self.num_aux() - ram_batch_size.iter().sum::<usize>());
+
+          nv
         } else {
           vec![self.num_aux()]
         };

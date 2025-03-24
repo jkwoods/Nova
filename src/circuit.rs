@@ -34,7 +34,7 @@ pub struct NovaAugmentedCircuitParams {
   n_limbs: usize,
   is_primary_circuit: bool, // A boolean indicating if this is the primary circuit
   num_split_witnesses: usize, // num of cmts in the OPPOSITE circuit
-  ram_batch_size: usize,    // wits in THIS circuit
+  ram_batch_size: Vec<usize>, // wits in THIS circuit
 }
 
 impl NovaAugmentedCircuitParams {
@@ -43,7 +43,7 @@ impl NovaAugmentedCircuitParams {
     n_limbs: usize,
     is_primary_circuit: bool,
     num_split_witnesses: usize,
-    ram_batch_size: usize,
+    ram_batch_size: Vec<usize>,
   ) -> Self {
     Self {
       limb_width,
@@ -135,7 +135,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     &self,
     mut cs: CS,
     arity: usize,
-    ram_batch_size: usize,
+    total_ram: usize,
   ) -> Result<
     (
       AllocatedNum<E::Base>,
@@ -153,8 +153,8 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     SynthesisError,
   > {
     // Allocate ram cmt wits (from z_i+1, supplied here with some prover help)
-    let zero = vec![E::Base::ZERO; ram_batch_size];
-    let ram_hints = (0..ram_batch_size)
+    let zero = vec![E::Base::ZERO; total_ram];
+    let ram_hints = (0..total_ram)
       .map(|i| {
         AllocatedNum::alloc(cs.namespace(|| format!("ram_hints_{i}")), || {
           Ok(self.inputs.get()?.ram_hints.as_ref().unwrap_or(&zero)[i])
@@ -343,14 +343,14 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     ),
     SynthesisError,
   > {
-    let ram_batch_size = self.params.ram_batch_size;
-    let arity = self.step_circuit.arity() - ram_batch_size;
+    let total_ram = self.params.ram_batch_size.iter().sum();
+    let arity = self.step_circuit.arity() - total_ram;
 
     // Allocate all witnesses
     let (params, i, z_0, z_i, ram_hints, C_i, U, r_i, r_next, u, T) = self.alloc_witness(
       cs.namespace(|| "allocate the circuit witness"),
       arity,
-      ram_batch_size,
+      total_ram,
     )?;
 
     // Compute variable indicating if this is the base case
@@ -416,7 +416,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     )?;
 
     // ram coming in is never looked at - no need to hook up
-    let mut z_input_full = (0..ram_batch_size)
+    let mut z_input_full = (0..total_ram)
       .map(|i| AllocatedNum::alloc(cs.namespace(|| format!("ram_in_{i}")), || Ok(E::Base::ZERO)))
       .collect::<Result<Vec<AllocatedNum<E::Base>>, _>>()?;
     z_input_full.extend(z_input);
@@ -425,8 +425,8 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
       .step_circuit
       .synthesize(&mut cs.namespace(|| "F"), &z_input_full)?;
 
-    let ram_from_z = &z_next_full[0..ram_batch_size];
-    let z_next = &z_next_full[ram_batch_size..];
+    let ram_from_z = &z_next_full[0..total_ram];
+    let z_next = &z_next_full[total_ram..];
 
     // make sure ram hints are tied in // TODO for mult cmts
     for j in 0..ram_hints.len() {
@@ -447,7 +447,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     // Accumulate Commitments
     let C_next = if self.accumulate_cmts {
       let mut cmts = Vec::new();
-      assert!(U.W.len() > 1);
+      assert!(u.W.len() > 1);
 
       for wi in 0..(u.W.len() - 1) {
         let mut cc = E::ROCircuit::new(
@@ -546,7 +546,7 @@ mod tests {
       NovaAugmentedCircuit::new(primary_params, None, &tc1, ro_consts1.clone(), false);
     let mut cs: TestShapeCS<E1> = TestShapeCS::new();
     let _ = circuit1.synthesize(&mut cs);
-    let (shape1, ck1) = cs.r1cs_shape(&*default_ck_hint(), false, 0, &[]);
+    let (shape1, ck1) = cs.r1cs_shape(&*default_ck_hint(), false, vec![], &[]);
     assert_eq!(cs.num_constraints(), num_constraints_primary);
 
     let tc2 = TrivialCircuit::default();
@@ -555,7 +555,7 @@ mod tests {
       NovaAugmentedCircuit::new(secondary_params, None, &tc2, ro_consts2.clone(), false);
     let mut cs: TestShapeCS<E2> = TestShapeCS::new();
     let _ = circuit2.synthesize(&mut cs);
-    let (shape2, ck2) = cs.r1cs_shape(&*default_ck_hint(), false, 0, &[]);
+    let (shape2, ck2) = cs.r1cs_shape(&*default_ck_hint(), false, vec![], &[]);
     assert_eq!(cs.num_constraints(), num_constraints_secondary);
 
     // Execute the base case for the primary
@@ -610,8 +610,8 @@ mod tests {
   #[test]
   fn test_recursive_circuit_pasta() {
     // this test checks against values that must be replicated in benchmarks if changed here
-    let params1 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true, 1, 0);
-    let params2 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false, 1, 0);
+    let params1 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true, 1, vec![]);
+    let params2 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false, 1, vec![]);
     let ro_consts1: ROConstantsCircuit<VestaEngine> = PoseidonConstantsCircuit::default();
     let ro_consts2: ROConstantsCircuit<PallasEngine> = PoseidonConstantsCircuit::default();
 
@@ -636,8 +636,8 @@ mod tests {
 
   #[test]
   fn test_recursive_circuit_secpq() {
-    let params1 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true, 1, 0);
-    let params2 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false, 1, 0);
+    let params1 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true, 1, vec![]);
+    let params2 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false, 1, vec![]);
     let ro_consts1: ROConstantsCircuit<Secq256k1Engine> = PoseidonConstantsCircuit::default();
     let ro_consts2: ROConstantsCircuit<Secp256k1Engine> = PoseidonConstantsCircuit::default();
 

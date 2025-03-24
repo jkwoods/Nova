@@ -127,7 +127,7 @@ fn main() {
       &circuit_secondary,
       &*S1::ck_floor(),
       &*S2::ck_floor(),
-      2,
+      vec![2],
       &[],
     )
     .unwrap();
