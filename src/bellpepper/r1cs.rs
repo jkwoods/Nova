@@ -72,8 +72,10 @@ impl<E: Engine> NovaWitness<E> for SatisfyingAssignment<E> {
       r_W.push(E::Scalar::random(&mut OsRng));
     }
 
-    let W = R1CSWitness::<E>::new(shape, div_wit, &r_W)?;
+    let W = R1CSWitness::<E>::new(shape, div_wit.clone(), &r_W)?; // TODO rm clone
     let X = &self.input_assignment()[1..];
+
+    println!("r1cs commit to {:#?} with blind {:#?}", div_wit, r_W);
 
     let comm_W = W.commit(ck);
 

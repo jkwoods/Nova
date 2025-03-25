@@ -986,7 +986,7 @@ where
         NUM_FE_WITHOUT_IO_WIT_FOR_CRHF
           + 2 * vk.F_arity_secondary
           + 3 * self.r_U_primary.comm_W.len()
-          + 1, //if Ci.is_some() { 1 } else { 0 },
+          + self.Ci.len(),
       );
       hasher2.absorb(scalar_as_base::<E1>(vk.pp_digest));
       hasher2.absorb(E2::Scalar::from(num_steps as u64));

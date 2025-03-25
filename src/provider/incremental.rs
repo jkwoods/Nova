@@ -1,6 +1,9 @@
 //! This module provides an incremental commitment scheme
 use crate::{
-  provider::{poseidon::PoseidonConstantsCircuit, traits::DlogGroup, PoseidonRO},
+  provider::{
+    pedersen::CommitmentKeyExtTrait, poseidon::PoseidonConstantsCircuit, traits::DlogGroup,
+    PoseidonRO,
+  },
   scalar_as_base,
   traits::{
     commitment::{CommitmentEngineTrait, CommitmentTrait, GetGeneratorsTrait},
@@ -18,6 +21,7 @@ where
   E1::GE: DlogGroup,
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
+  CommitmentKey<E1>: CommitmentKeyExtTrait<E1>,
 {
   /// pedersen gens  
   pub ped_gen: CommitmentKey<E1>,
@@ -30,6 +34,7 @@ where
   E1::GE: DlogGroup,
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
+  CommitmentKey<E1>: CommitmentKeyExtTrait<E1>,
 {
   /// setup generators
   pub fn setup(label: &'static [u8], size: usize) -> Self {
@@ -43,6 +48,24 @@ where
     }
   }
 
+  /// split generators for split wits
+  pub fn split_at(&self, n: usize) -> (Self, Self) {
+    let (ped_gen_a, ped_gen_b) = self.ped_gen.split_at(n);
+
+    (
+      Incremental::<E1, E2> {
+        ped_gen: ped_gen_a,
+        pos_constants: self.pos_constants.clone(),
+        _p: PhantomData::default(),
+      },
+      Incremental::<E1, E2> {
+        ped_gen: ped_gen_b,
+        pos_constants: self.pos_constants.clone(),
+        _p: PhantomData::default(),
+      },
+    )
+  }
+
   /// commit incrementally to chunk of list
   pub fn commit(&self, c_i: Option<E2::Scalar>, w: &[E1::Scalar]) -> (E2::Scalar, E1::Scalar) {
     let mut cc = E1::RO::new(self.pos_constants.clone(), 4);
@@ -54,6 +77,7 @@ where
     }
 
     let blind = E1::Scalar::random(&mut OsRng);
+    println!("committing to {:#?} with blind {:#?}", w, blind);
     let ped_cmt = E1::CE::commit(&self.ped_gen, w, &blind);
 
     println!("cmt in clear {:#?}", ped_cmt);
