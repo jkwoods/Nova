@@ -47,12 +47,6 @@ impl<E: Engine> NovaWitness<E> for SatisfyingAssignment<E> {
   ) -> Result<(R1CSInstance<E>, R1CSWitness<E>), NovaError> {
     let long_wit = self.aux_assignment();
 
-    println!(
-      "LONG WIT LEN {} NUM SPLIT VARS {:#?}",
-      long_wit.len(),
-      shape.num_split_vars.len()
-    );
-
     let mut div_wit = Vec::new();
     let mut start = 0;
     let mut end = 0;
@@ -75,11 +69,7 @@ impl<E: Engine> NovaWitness<E> for SatisfyingAssignment<E> {
     let W = R1CSWitness::<E>::new(shape, div_wit.clone(), &r_W)?; // TODO rm clone
     let X = &self.input_assignment()[1..];
 
-    println!("r1cs commit to {:#?} with blind {:#?}", div_wit, r_W);
-
     let comm_W = W.commit(ck);
-
-    println!("COMM W LEN {}", comm_W.len());
 
     let instance = R1CSInstance::<E>::new(shape, &comm_W, X)?;
 

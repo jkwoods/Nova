@@ -445,7 +445,6 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     }
 
     // Accumulate Commitments
-    println!("ACC CMT in func {}", self.accumulate_cmts);
     let C_next = if self.accumulate_cmts {
       let mut cmts = Vec::new();
       assert!(!self.params.is_primary_circuit);
@@ -458,18 +457,13 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
         );
 
         cc.absorb(&C_i.as_ref().unwrap()[wi]);
-        println!("absorb in circ {:#?}", C_i.clone().unwrap()[wi].get_value());
 
         cc.absorb(&u.W[wi].x);
         cc.absorb(&u.W[wi].y);
         cc.absorb(&u.W[wi].is_infinity);
 
-        println!("cmt in circ s {:#?}", u.W[wi].x.get_value().clone());
-
         let cc_hash_bits = cc.squeeze(cs.namespace(|| "cc output hash bits"), NUM_HASH_BITS)?;
         let hash_num = le_bits_to_num(cs.namespace(|| "cc convert hash to num"), &cc_hash_bits)?;
-
-        println!("hash num in circ {:#?}", hash_num.clone());
 
         cmts.push(hash_num);
       }

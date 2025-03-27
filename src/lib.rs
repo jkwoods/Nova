@@ -147,7 +147,6 @@ where
     gen_start: &[&CommitmentKey<E1>],
   ) -> Result<Self, NovaError> {
     let accumulate_cmts = ram_batch_sizes.len() > 0;
-    println!("ACC CMT {}", accumulate_cmts);
 
     let augmented_circuit_params_primary =
       NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true, 1, ram_batch_sizes.clone());
@@ -181,12 +180,6 @@ where
     let _ = circuit_primary.synthesize(&mut cs);
     let (r1cs_shape_primary, ck_primary) =
       cs.r1cs_shape(ck_hint1, true, ram_batch_sizes, gen_start);
-    println!("SETUP r1cs shape {:#?}", r1cs_shape_primary.num_split_vars);
-    /*println!(
-      "ck primary {:#?}, gen start {:#?}",
-      ck_primary.clone(),
-      gen_start.clone()
-    );*/
 
     // Initialize ck for the secondary
     let circuit_secondary: NovaAugmentedCircuit<'_, E1, C2> = NovaAugmentedCircuit::new(
@@ -306,7 +299,6 @@ where
     let ri_secondary = E2::Scalar::random(&mut OsRng);
 
     let accumulate_cmts = ram_hints.len() > 0;
-    println!("ACC CMS 2 {}", accumulate_cmts);
 
     // base case for the primary
     let mut cs_primary = SatisfyingAssignment::<E1>::new();
@@ -334,8 +326,6 @@ where
     let (zi_primary, _) = circuit_primary.synthesize(&mut cs_primary)?;
     let (u_primary, w_primary) =
       cs_primary.r1cs_instance_and_witness(&pp.r1cs_shape_primary, &pp.ck_primary, ram_blind)?;
-    //println!("new wit {:#?}", w_primary.W[0]);
-    println!("cmt ram {:#?}", u_primary.comm_W[0]);
 
     // base case for the secondary
     let mut cs_secondary = SatisfyingAssignment::<E2>::new();
@@ -479,8 +469,6 @@ where
 
     let (l_u_primary, l_w_primary) =
       cs_primary.r1cs_instance_and_witness(&pp.r1cs_shape_primary, &pp.ck_primary, ram_blind)?;
-    //println!("prove step wit {:#?}", l_w_primary.W[0]);
-    println!("cmt ram {:#?}", l_u_primary.comm_W[0]);
 
     // fold the primary circuit's instance
     let (nifs_primary, (r_U_primary, r_W_primary)) = NIFS::prove(
