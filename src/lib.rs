@@ -139,8 +139,8 @@ where
   /// let pp = PublicParams::setup(&circuit1, &circuit2, ck_hint1, ck_hint2, ram_batch_size, &[]);
   /// ```
   pub fn setup(
-    c_primary: &C1,
-    c_secondary: &C2,
+    c_primary: &mut C1,
+    c_secondary: &mut C2,
     ck_hint1: &CommitmentKeyHint<E1>,
     ck_hint2: &CommitmentKeyHint<E2>,
     ram_batch_sizes: Vec<usize>,
@@ -284,8 +284,8 @@ where
   /// Create new instance of recursive SNARK
   pub fn new(
     pp: &PublicParams<E1, E2, C1, C2>,
-    c_primary: &C1,
-    c_secondary: &C2,
+    c_primary: &mut C1,
+    c_secondary: &mut C2,
     z0_primary: &[E1::Scalar],
     z0_secondary: &[E2::Scalar],
     ram_blind: Option<Vec<E1::Scalar>>, // len == # accumulations
@@ -416,8 +416,8 @@ where
   pub fn prove_step(
     &mut self,
     pp: &PublicParams<E1, E2, C1, C2>,
-    c_primary: &C1,
-    c_secondary: &C2,
+    c_primary: &mut C1,
+    c_secondary: &mut C2,
     ram_blind: Option<Vec<E1::Scalar>>,
     ram_hints: Vec<E1::Scalar>,
   ) -> Result<(), NovaError> {

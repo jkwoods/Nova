@@ -108,7 +108,7 @@ pub struct NovaAugmentedCircuit<'a, E: Engine, SC: StepCircuit<E::Base>> {
   params: &'a NovaAugmentedCircuitParams,
   ro_consts: ROConstantsCircuit<E>,
   inputs: Option<NovaAugmentedCircuitInputs<E>>,
-  step_circuit: &'a SC, // The function that is applied for each step
+  step_circuit: &'a mut SC, // The function that is applied for each step
   accumulate_cmts: bool,
 }
 
@@ -117,7 +117,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
   pub const fn new(
     params: &'a NovaAugmentedCircuitParams,
     inputs: Option<NovaAugmentedCircuitInputs<E>>,
-    step_circuit: &'a SC,
+    step_circuit: &'a mut SC,
     ro_consts: ROConstantsCircuit<E>,
     accumulate_cmts: bool,
   ) -> Self {
@@ -334,7 +334,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
 impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
   /// synthesize circuit giving constraint system
   pub fn synthesize<CS: ConstraintSystem<<E as Engine>::Base>>(
-    self,
+    mut self,
     cs: &mut CS,
   ) -> Result<
     (

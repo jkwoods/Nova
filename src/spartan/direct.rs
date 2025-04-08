@@ -28,7 +28,10 @@ struct DirectCircuit<E: Engine, SC: StepCircuit<E::Scalar>> {
 }
 
 impl<E: Engine, SC: StepCircuit<E::Scalar>> Circuit<E::Scalar> for DirectCircuit<E, SC> {
-  fn synthesize<CS: ConstraintSystem<E::Scalar>>(self, cs: &mut CS) -> Result<(), SynthesisError> {
+  fn synthesize<CS: ConstraintSystem<E::Scalar>>(
+    mut self,
+    cs: &mut CS,
+  ) -> Result<(), SynthesisError> {
     // obtain the arity information
     let arity = self.sc.arity();
 

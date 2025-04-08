@@ -14,7 +14,7 @@ pub trait StepCircuit<F: PrimeField>: Send + Sync + Clone {
   /// Sythesize the circuit for a computation step and return variable
   /// that corresponds to the output of the step `z_{i+1}`
   fn synthesize<CS: ConstraintSystem<F>>(
-    &self,
+    &mut self,
     cs: &mut CS,
     z: &[AllocatedNum<F>],
   ) -> Result<Vec<AllocatedNum<F>>, SynthesisError>;
@@ -32,7 +32,7 @@ impl<F: PrimeField> StepCircuit<F> for TrivialCircuit<F> {
   }
 
   fn synthesize<CS: ConstraintSystem<F>>(
-    &self,
+    &mut self,
     _cs: &mut CS,
     z: &[AllocatedNum<F>],
   ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
