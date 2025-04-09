@@ -58,7 +58,7 @@ impl<G: Group> StepCircuit<G::Scalar> for HashChainCircuit<G> {
   }
 
   fn synthesize<CS: ConstraintSystem<G::Scalar>>(
-    &self,
+    &mut self,
     cs: &mut CS,
     z_in: &[AllocatedNum<G::Scalar>],
   ) -> Result<Vec<AllocatedNum<G::Scalar>>, SynthesisError> {
@@ -111,8 +111,8 @@ fn main() {
   let num_steps = 10;
   for num_elts_per_step in [1024, 2048, 4096] {
     // number of instances of AND per Nova's recursive step
-    let circuit_primary = HashChainCircuit::new(num_elts_per_step);
-    let circuit_secondary = TrivialCircuit::default();
+    let mut circuit_primary = HashChainCircuit::new(num_elts_per_step);
+    let mut circuit_secondary = TrivialCircuit::default();
 
     // produce public parameters
     let start = Instant::now();
@@ -123,8 +123,8 @@ fn main() {
       HashChainCircuit<<E1 as Engine>::GE>,
       TrivialCircuit<<E2 as Engine>::Scalar>,
     >::setup(
-      &circuit_primary,
-      &circuit_secondary,
+      &mut circuit_primary,
+      &mut circuit_secondary,
       &*S1::ck_floor(),
       &*S2::ck_floor(),
       vec![2],
@@ -152,7 +152,7 @@ fn main() {
     );
 
     // produce non-deterministic advice
-    let circuits = (0..num_steps)
+    let mut circuits = (0..num_steps)
       .map(|_| HashChainCircuit::new(num_elts_per_step))
       .collect::<Vec<_>>();
 
@@ -166,8 +166,8 @@ fn main() {
     let mut recursive_snark: RecursiveSNARK<E1, E2, C1, C2> =
       RecursiveSNARK::<E1, E2, C1, C2>::new(
         &pp,
-        &circuits[0],
-        &circuit_secondary,
+        &mut circuits[0],
+        &mut circuit_secondary,
         &[<E1 as Engine>::Scalar::zero()],
         &[<E2 as Engine>::Scalar::zero()],
         None,
@@ -175,9 +175,15 @@ fn main() {
       )
       .unwrap();
 
-    for (i, circuit_primary) in circuits.iter().enumerate() {
+    for (i, mut circuit_primary) in circuits.into_iter().enumerate() {
       let start = Instant::now();
-      let res = recursive_snark.prove_step(&pp, circuit_primary, &circuit_secondary, None, vec![]);
+      let res = recursive_snark.prove_step(
+        &pp,
+        &mut circuit_primary,
+        &mut circuit_secondary,
+        None,
+        vec![],
+      );
       assert!(res.is_ok());
 
       println!("RecursiveSNARK::prove {} : took {:?} ", i, start.elapsed());

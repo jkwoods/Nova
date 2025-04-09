@@ -536,19 +536,19 @@ mod tests {
     E1: Engine<Base = <E2 as Engine>::Scalar>,
     E2: Engine<Base = <E1 as Engine>::Scalar>,
   {
-    let tc1 = TrivialCircuit::default();
+    let mut tc1 = TrivialCircuit::default();
     // Initialize the shape and ck for the primary
     let circuit1: NovaAugmentedCircuit<'_, E2, TrivialCircuit<<E2 as Engine>::Base>> =
-      NovaAugmentedCircuit::new(primary_params, None, &tc1, ro_consts1.clone(), false);
+      NovaAugmentedCircuit::new(primary_params, None, &mut tc1, ro_consts1.clone(), false);
     let mut cs: TestShapeCS<E1> = TestShapeCS::new();
     let _ = circuit1.synthesize(&mut cs);
     let (shape1, ck1) = cs.r1cs_shape(&*default_ck_hint(), false, vec![], &[]);
     assert_eq!(cs.num_constraints(), num_constraints_primary);
 
-    let tc2 = TrivialCircuit::default();
+    let mut tc2 = TrivialCircuit::default();
     // Initialize the shape and ck for the secondary
     let circuit2: NovaAugmentedCircuit<'_, E1, TrivialCircuit<<E1 as Engine>::Base>> =
-      NovaAugmentedCircuit::new(secondary_params, None, &tc2, ro_consts2.clone(), false);
+      NovaAugmentedCircuit::new(secondary_params, None, &mut tc2, ro_consts2.clone(), false);
     let mut cs: TestShapeCS<E2> = TestShapeCS::new();
     let _ = circuit2.synthesize(&mut cs);
     let (shape2, ck2) = cs.r1cs_shape(&*default_ck_hint(), false, vec![], &[]);
@@ -572,7 +572,7 @@ mod tests {
       None,
     );
     let circuit1: NovaAugmentedCircuit<'_, E2, TrivialCircuit<<E2 as Engine>::Base>> =
-      NovaAugmentedCircuit::new(primary_params, Some(inputs1), &tc1, ro_consts1, false);
+      NovaAugmentedCircuit::new(primary_params, Some(inputs1), &mut tc1, ro_consts1, false);
     let _ = circuit1.synthesize(&mut cs1);
     let (inst1, witness1) = cs1.r1cs_instance_and_witness(&shape1, &ck1, None).unwrap();
     // Make sure that this is satisfiable
@@ -596,7 +596,7 @@ mod tests {
       None,
     );
     let circuit2: NovaAugmentedCircuit<'_, E1, TrivialCircuit<<E1 as Engine>::Base>> =
-      NovaAugmentedCircuit::new(secondary_params, Some(inputs2), &tc2, ro_consts2, false);
+      NovaAugmentedCircuit::new(secondary_params, Some(inputs2), &mut tc2, ro_consts2, false);
     let _ = circuit2.synthesize(&mut cs2);
     let (inst2, witness2) = cs2.r1cs_instance_and_witness(&shape2, &ck2, None).unwrap();
     // Make sure that it is satisfiable

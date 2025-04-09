@@ -89,7 +89,7 @@ impl<G: Group> StepCircuit<G::Scalar> for MinRootCircuit<G> {
   }
 
   fn synthesize<CS: ConstraintSystem<G::Scalar>>(
-    &self,
+    &mut self,
     cs: &mut CS,
     z: &[AllocatedNum<G::Scalar>],
   ) -> Result<Vec<AllocatedNum<G::Scalar>>, SynthesisError> {
@@ -146,7 +146,7 @@ fn main() {
   let num_steps = 10;
   for num_iters_per_step in [1024, 2048, 4096, 8192, 16384, 32768, 65536] {
     // number of iterations of MinRoot per Nova's recursive step
-    let circuit_primary = MinRootCircuit {
+    let mut circuit_primary = MinRootCircuit {
       seq: vec![
         MinRootIteration {
           x_i: <E1 as Engine>::Scalar::zero(),
@@ -158,7 +158,7 @@ fn main() {
       ],
     };
 
-    let circuit_secondary = TrivialCircuit::default();
+    let mut circuit_secondary = TrivialCircuit::default();
 
     println!("Proving {num_iters_per_step} iterations of MinRoot per step");
 
@@ -171,8 +171,8 @@ fn main() {
       MinRootCircuit<<E1 as Engine>::GE>,
       TrivialCircuit<<E2 as Engine>::Scalar>,
     >::setup(
-      &circuit_primary,
-      &circuit_secondary,
+      &mut circuit_primary,
+      &mut circuit_secondary,
       &*S1::ck_floor(),
       &*S2::ck_floor(),
       vec![2],
@@ -205,7 +205,7 @@ fn main() {
       &<E1 as Engine>::Scalar::zero(),
       &<E1 as Engine>::Scalar::one(),
     );
-    let minroot_circuits = (0..num_steps)
+    let mut minroot_circuits = (0..num_steps)
       .map(|i| MinRootCircuit {
         seq: (0..num_iters_per_step)
           .map(|j| MinRootIteration {
@@ -227,8 +227,8 @@ fn main() {
     let mut recursive_snark: RecursiveSNARK<E1, E2, C1, C2> =
       RecursiveSNARK::<E1, E2, C1, C2>::new(
         &pp,
-        &minroot_circuits[0],
-        &circuit_secondary,
+        &mut minroot_circuits[0],
+        &mut circuit_secondary,
         &z0_primary,
         &z0_secondary,
         None,
@@ -236,9 +236,15 @@ fn main() {
       )
       .unwrap();
 
-    for (i, circuit_primary) in minroot_circuits.iter().enumerate() {
+    for (i, mut circuit_primary) in minroot_circuits.into_iter().enumerate() {
       let start = Instant::now();
-      let res = recursive_snark.prove_step(&pp, circuit_primary, &circuit_secondary, None, vec![]);
+      let res = recursive_snark.prove_step(
+        &pp,
+        &mut circuit_primary,
+        &mut circuit_secondary,
+        None,
+        vec![],
+      );
       assert!(res.is_ok());
       println!(
         "RecursiveSNARK::prove_step {}: {:?}, took {:?} ",

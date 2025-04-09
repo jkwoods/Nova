@@ -1096,7 +1096,7 @@ mod tests {
     }
 
     fn synthesize<CS: ConstraintSystem<F>>(
-      &self,
+      &mut self,
       cs: &mut CS,
       z: &[AllocatedNum<F>],
     ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
@@ -1188,8 +1188,8 @@ mod tests {
     E1: Engine<Base = <E2 as Engine>::Scalar>,
     E2: Engine<Base = <E1 as Engine>::Scalar>,
   {
-    let test_circuit1 = TrivialCircuit::<<E1 as Engine>::Scalar>::default();
-    let test_circuit2 = TrivialCircuit::<<E2 as Engine>::Scalar>::default();
+    let mut test_circuit1 = TrivialCircuit::<<E1 as Engine>::Scalar>::default();
+    let mut test_circuit2 = TrivialCircuit::<<E2 as Engine>::Scalar>::default();
 
     // produce public parameters
     let pp = PublicParams::<
@@ -1198,8 +1198,8 @@ mod tests {
       TrivialCircuit<<E1 as Engine>::Scalar>,
       TrivialCircuit<<E2 as Engine>::Scalar>,
     >::setup(
-      &test_circuit1,
-      &test_circuit2,
+      &mut test_circuit1,
+      &mut test_circuit2,
       &*default_ck_hint(),
       &*default_ck_hint(),
       vec![],
@@ -1212,8 +1212,8 @@ mod tests {
     // produce a recursive SNARK
     let mut recursive_snark = RecursiveSNARK::new(
       &pp,
-      &test_circuit1,
-      &test_circuit2,
+      &mut test_circuit1,
+      &mut test_circuit2,
       &[<E1 as Engine>::Scalar::ZERO],
       &[<E2 as Engine>::Scalar::ZERO],
       None,
@@ -1221,7 +1221,7 @@ mod tests {
     )
     .unwrap();
 
-    let res = recursive_snark.prove_step(&pp, &test_circuit1, &test_circuit2, None, vec![]);
+    let res = recursive_snark.prove_step(&pp, &mut test_circuit1, &mut test_circuit2, None, vec![]);
 
     assert!(res.is_ok());
 
@@ -1247,8 +1247,8 @@ mod tests {
     E1: Engine<Base = <E2 as Engine>::Scalar>,
     E2: Engine<Base = <E1 as Engine>::Scalar>,
   {
-    let circuit_primary = TrivialCircuit::default();
-    let circuit_secondary = CubicCircuit::default();
+    let mut circuit_primary = TrivialCircuit::default();
+    let mut circuit_secondary = CubicCircuit::default();
 
     // produce public parameters
     let pp = PublicParams::<
@@ -1257,8 +1257,8 @@ mod tests {
       TrivialCircuit<<E1 as Engine>::Scalar>,
       CubicCircuit<<E2 as Engine>::Scalar>,
     >::setup(
-      &circuit_primary,
-      &circuit_secondary,
+      &mut circuit_primary,
+      &mut circuit_secondary,
       &*default_ck_hint(),
       &*default_ck_hint(),
       vec![],
@@ -1276,8 +1276,8 @@ mod tests {
       CubicCircuit<<E2 as Engine>::Scalar>,
     >::new(
       &pp,
-      &circuit_primary,
-      &circuit_secondary,
+      &mut circuit_primary,
+      &mut circuit_secondary,
       &[<E1 as Engine>::Scalar::ONE],
       &[<E2 as Engine>::Scalar::ZERO],
       None,
@@ -1286,7 +1286,13 @@ mod tests {
     .unwrap();
 
     for i in 0..num_steps {
-      let res = recursive_snark.prove_step(&pp, &circuit_primary, &circuit_secondary, None, vec![]);
+      let res = recursive_snark.prove_step(
+        &pp,
+        &mut circuit_primary,
+        &mut circuit_secondary,
+        None,
+        vec![],
+      );
       assert!(res.is_ok());
 
       // verify the recursive snark at each step of recursion
@@ -1334,8 +1340,8 @@ mod tests {
     EE1: EvaluationEngineTrait<E1>,
     EE2: EvaluationEngineTrait<E2>,
   {
-    let circuit_primary = TrivialCircuit::default();
-    let circuit_secondary = CubicCircuit::default();
+    let mut circuit_primary = TrivialCircuit::default();
+    let mut circuit_secondary = CubicCircuit::default();
 
     // produce public parameters
     let pp = PublicParams::<
@@ -1344,8 +1350,8 @@ mod tests {
       TrivialCircuit<<E1 as Engine>::Scalar>,
       CubicCircuit<<E2 as Engine>::Scalar>,
     >::setup(
-      &circuit_primary,
-      &circuit_secondary,
+      &mut circuit_primary,
+      &mut circuit_secondary,
       &*default_ck_hint(),
       &*default_ck_hint(),
       vec![],
@@ -1363,8 +1369,8 @@ mod tests {
       CubicCircuit<<E2 as Engine>::Scalar>,
     >::new(
       &pp,
-      &circuit_primary,
-      &circuit_secondary,
+      &mut circuit_primary,
+      &mut circuit_secondary,
       &[<E1 as Engine>::Scalar::ONE],
       &[<E2 as Engine>::Scalar::ZERO],
       None,
@@ -1373,7 +1379,13 @@ mod tests {
     .unwrap();
 
     for _i in 0..num_steps {
-      let res = recursive_snark.prove_step(&pp, &circuit_primary, &circuit_secondary, None, vec![]);
+      let res = recursive_snark.prove_step(
+        &pp,
+        &mut circuit_primary,
+        &mut circuit_secondary,
+        None,
+        vec![],
+      );
       assert!(res.is_ok());
     }
 
@@ -1573,7 +1585,7 @@ mod tests {
       }
 
       fn synthesize<CS: ConstraintSystem<F>>(
-        &self,
+        &mut self,
         cs: &mut CS,
         z: &[AllocatedNum<F>],
       ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
@@ -1598,11 +1610,11 @@ mod tests {
       }
     }
 
-    let circuit_primary = FifthRootCheckingCircuit {
+    let mut circuit_primary = FifthRootCheckingCircuit {
       y: <E1 as Engine>::Scalar::ZERO,
     };
 
-    let circuit_secondary = TrivialCircuit::default();
+    let mut circuit_secondary = TrivialCircuit::default();
 
     // produce public parameters
     let pp = PublicParams::<
@@ -1611,8 +1623,8 @@ mod tests {
       FifthRootCheckingCircuit<<E1 as Engine>::Scalar>,
       TrivialCircuit<<E2 as Engine>::Scalar>,
     >::setup(
-      &circuit_primary,
-      &circuit_secondary,
+      &mut circuit_primary,
+      &mut circuit_secondary,
       &*default_ck_hint(),
       &*default_ck_hint(),
       vec![],
@@ -1623,7 +1635,7 @@ mod tests {
     let num_steps = 3;
 
     // produce non-deterministic advice
-    let (z0_primary, roots) = FifthRootCheckingCircuit::new(num_steps);
+    let (z0_primary, mut roots) = FifthRootCheckingCircuit::new(num_steps);
     let z0_secondary = vec![<E2 as Engine>::Scalar::ZERO];
 
     // produce a recursive SNARK
@@ -1639,8 +1651,8 @@ mod tests {
       TrivialCircuit<<E2 as Engine>::Scalar>,
     >::new(
       &pp,
-      &roots[0],
-      &circuit_secondary,
+      &mut roots[0],
+      &mut circuit_secondary,
       &z0_primary,
       &z0_secondary,
       None,
@@ -1649,8 +1661,14 @@ mod tests {
     .unwrap();
 
     let mut ii = 0;
-    for circuit_primary in roots.iter().take(num_steps) {
-      let res = recursive_snark.prove_step(&pp, circuit_primary, &circuit_secondary, None, vec![]);
+    for mut circuit_primary in roots.into_iter().take(num_steps) {
+      let res = recursive_snark.prove_step(
+        &pp,
+        &mut circuit_primary,
+        &mut circuit_secondary,
+        None,
+        vec![],
+      );
       //      println!("res {:#?}", res);
       assert!(res.is_ok());
 
@@ -1693,8 +1711,8 @@ mod tests {
     E1: Engine<Base = <E2 as Engine>::Scalar>,
     E2: Engine<Base = <E1 as Engine>::Scalar>,
   {
-    let test_circuit1 = TrivialCircuit::<<E1 as Engine>::Scalar>::default();
-    let test_circuit2 = CubicCircuit::<<E2 as Engine>::Scalar>::default();
+    let mut test_circuit1 = TrivialCircuit::<<E1 as Engine>::Scalar>::default();
+    let mut test_circuit2 = CubicCircuit::<<E2 as Engine>::Scalar>::default();
 
     // produce public parameters
     let pp = PublicParams::<
@@ -1703,8 +1721,8 @@ mod tests {
       TrivialCircuit<<E1 as Engine>::Scalar>,
       CubicCircuit<<E2 as Engine>::Scalar>,
     >::setup(
-      &test_circuit1,
-      &test_circuit2,
+      &mut test_circuit1,
+      &mut test_circuit2,
       &*default_ck_hint(),
       &*default_ck_hint(),
       vec![],
@@ -1722,8 +1740,8 @@ mod tests {
       CubicCircuit<<E2 as Engine>::Scalar>,
     >::new(
       &pp,
-      &test_circuit1,
-      &test_circuit2,
+      &mut test_circuit1,
+      &mut test_circuit2,
       &[<E1 as Engine>::Scalar::ONE],
       &[<E2 as Engine>::Scalar::ZERO],
       None,
@@ -1732,7 +1750,7 @@ mod tests {
     .unwrap();
 
     // produce a recursive SNARK
-    let res = recursive_snark.prove_step(&pp, &test_circuit1, &test_circuit2, None, vec![]);
+    let res = recursive_snark.prove_step(&pp, &mut test_circuit1, &mut test_circuit2, None, vec![]);
 
     assert!(res.is_ok());
 
@@ -1775,7 +1793,7 @@ mod tests {
       }
 
       fn synthesize<CS: ConstraintSystem<F>>(
-        &self,
+        &mut self,
         cs: &mut CS,
         z: &[AllocatedNum<F>],
       ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
@@ -1787,11 +1805,11 @@ mod tests {
     }
 
     // produce public parameters with trivial secondary
-    let circuit = CircuitWithInputize::<<E1 as Engine>::Scalar>::default();
+    let mut circuit = CircuitWithInputize::<<E1 as Engine>::Scalar>::default();
     let pp =
       PublicParams::<E1, E2, CircuitWithInputize<E1::Scalar>, TrivialCircuit<E2::Scalar>>::setup(
-        &circuit,
-        &TrivialCircuit::default(),
+        &mut circuit,
+        &mut TrivialCircuit::default(),
         &*default_ck_hint(),
         &*default_ck_hint(),
         vec![],
@@ -1801,11 +1819,11 @@ mod tests {
     assert_eq!(pp.err(), Some(NovaError::InvalidStepCircuitIO));
 
     // produce public parameters with the trivial primary
-    let circuit = CircuitWithInputize::<E2::Scalar>::default();
+    let mut circuit = CircuitWithInputize::<E2::Scalar>::default();
     let pp =
       PublicParams::<E1, E2, TrivialCircuit<E1::Scalar>, CircuitWithInputize<E2::Scalar>>::setup(
-        &TrivialCircuit::default(),
-        &circuit,
+        &mut TrivialCircuit::default(),
+        &mut circuit,
         &*default_ck_hint(),
         &*default_ck_hint(),
         vec![],
