@@ -77,13 +77,9 @@ where
     }
 
     let blind = E1::Scalar::random(&mut OsRng);
-    println!("committing to {:#?} with blind {:#?}", w, blind);
     let ped_cmt = E1::CE::commit(&self.ped_gen, w, &blind);
 
-    println!("cmt in clear {:#?}", ped_cmt);
-
     let ped_coords = ped_cmt.to_coordinates();
-    println!("x {:#?}", ped_coords.0);
 
     cc.absorb(ped_coords.0);
     cc.absorb(ped_coords.1);
@@ -94,7 +90,6 @@ where
     });
 
     let cc_hash = cc.squeeze(NUM_HASH_BITS);
-    println!("hash in clear {:#?}", scalar_as_base::<E1>(cc_hash));
 
     (scalar_as_base::<E1>(cc_hash), blind)
   }
