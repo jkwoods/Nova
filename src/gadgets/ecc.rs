@@ -930,7 +930,7 @@ mod tests {
     test_ecc_ops_with::<pallas::Affine, PallasEngine>();
     test_ecc_ops_with::<vesta::Affine, VestaEngine>();
 
-    //  test_ecc_ops_with::<bn256::Affine, Bn256EngineKZG>();
+    test_ecc_ops_with::<bn256::Affine, Bn256EngineKZG>();
     test_ecc_ops_with::<grumpkin::Affine, GrumpkinEngine>();
 
     test_ecc_ops_with::<secp256k1::Affine, Secp256k1Engine>();
@@ -1017,8 +1017,8 @@ mod tests {
     test_ecc_circuit_ops_with::<PallasEngine, VestaEngine>();
     test_ecc_circuit_ops_with::<VestaEngine, PallasEngine>();
 
-    //test_ecc_circuit_ops_with::<Bn256EngineKZG, GrumpkinEngine>();
-    //test_ecc_circuit_ops_with::<GrumpkinEngine, Bn256EngineKZG>();
+    test_ecc_circuit_ops_with::<Bn256EngineKZG, GrumpkinEngine>();
+    test_ecc_circuit_ops_with::<GrumpkinEngine, Bn256EngineKZG>();
 
     test_ecc_circuit_ops_with::<Secp256k1Engine, Secq256k1Engine>();
     test_ecc_circuit_ops_with::<Secq256k1Engine, Secp256k1Engine>();
@@ -1033,7 +1033,7 @@ mod tests {
     let mut cs: TestShapeCS<E2> = TestShapeCS::new();
     let _ = synthesize_smul::<E1, _>(cs.namespace(|| "synthesize"));
     println!("Number of constraints: {}", cs.num_constraints());
-    let (shape, ck) = cs.r1cs_shape(&*default_ck_hint(), false, vec![], &[]);
+    let (shape, ck) = cs.r1cs_shape(&*default_ck_hint(), false, vec![]);
 
     // Then the satisfying assignment
     let mut cs = SatisfyingAssignment::<E2>::new();
@@ -1073,8 +1073,8 @@ mod tests {
     test_ecc_circuit_add_equal_with::<PallasEngine, VestaEngine>();
     test_ecc_circuit_add_equal_with::<VestaEngine, PallasEngine>();
 
-    //  test_ecc_circuit_add_equal_with::<Bn256EngineKZG, GrumpkinEngine>();
-    //  test_ecc_circuit_add_equal_with::<GrumpkinEngine, Bn256EngineKZG>();
+    test_ecc_circuit_add_equal_with::<Bn256EngineKZG, GrumpkinEngine>();
+    test_ecc_circuit_add_equal_with::<GrumpkinEngine, Bn256EngineKZG>();
 
     test_ecc_circuit_add_equal_with::<Secp256k1Engine, Secq256k1Engine>();
     test_ecc_circuit_add_equal_with::<Secq256k1Engine, Secp256k1Engine>();
@@ -1089,7 +1089,7 @@ mod tests {
     let mut cs: TestShapeCS<E2> = TestShapeCS::new();
     let _ = synthesize_add_equal::<E1, _>(cs.namespace(|| "synthesize add equal"));
     println!("Number of constraints: {}", cs.num_constraints());
-    let (shape, ck) = cs.r1cs_shape(&*default_ck_hint(), false, vec![], &[]);
+    let (shape, ck) = cs.r1cs_shape(&*default_ck_hint(), false, vec![]);
 
     // Then the satisfying assignment
     let mut cs = SatisfyingAssignment::<E2>::new();
@@ -1134,8 +1134,8 @@ mod tests {
     test_ecc_circuit_add_negation_with::<PallasEngine, VestaEngine>();
     test_ecc_circuit_add_negation_with::<VestaEngine, PallasEngine>();
 
-    //test_ecc_circuit_add_negation_with::<Bn256EngineKZG, GrumpkinEngine>();
-    //test_ecc_circuit_add_negation_with::<GrumpkinEngine, Bn256EngineKZG>();
+    test_ecc_circuit_add_negation_with::<Bn256EngineKZG, GrumpkinEngine>();
+    test_ecc_circuit_add_negation_with::<GrumpkinEngine, Bn256EngineKZG>();
 
     test_ecc_circuit_add_negation_with::<Secp256k1Engine, Secq256k1Engine>();
     test_ecc_circuit_add_negation_with::<Secq256k1Engine, Secp256k1Engine>();
@@ -1150,7 +1150,7 @@ mod tests {
     let mut cs: TestShapeCS<E2> = TestShapeCS::new();
     let _ = synthesize_add_negation::<E1, _>(cs.namespace(|| "synthesize add equal"));
     println!("Number of constraints: {}", cs.num_constraints());
-    let (shape, ck) = cs.r1cs_shape(&*default_ck_hint(), false, vec![], &[]);
+    let (shape, ck) = cs.r1cs_shape(&*default_ck_hint(), false, vec![]);
 
     // Then the satisfying assignment
     let mut cs = SatisfyingAssignment::<E2>::new();

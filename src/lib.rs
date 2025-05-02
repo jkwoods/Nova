@@ -136,7 +136,7 @@ where
   /// let ck_hint2 = &*SPrime::<E2>::ck_floor();
   ///
   /// let ram_batch_size = 0;
-  /// let pp = PublicParams::setup(&circuit1, &circuit2, ck_hint1, ck_hint2, ram_batch_size, &[]);
+  /// let pp = PublicParams::setup(&circuit1, &circuit2, ck_hint1, ck_hint2, ram_batch_size);
   /// ```
   pub fn setup(
     c_primary: &mut C1,
@@ -144,7 +144,6 @@ where
     ck_hint1: &CommitmentKeyHint<E1>,
     ck_hint2: &CommitmentKeyHint<E2>,
     ram_batch_sizes: Vec<usize>,
-    gen_start: &[&CommitmentKey<E1>],
   ) -> Result<Self, NovaError> {
     let accumulate_cmts = ram_batch_sizes.len() > 0;
 
@@ -178,8 +177,7 @@ where
     );
     let mut cs: ShapeCS<E1> = ShapeCS::new();
     let _ = circuit_primary.synthesize(&mut cs);
-    let (r1cs_shape_primary, ck_primary) =
-      cs.r1cs_shape(ck_hint1, true, ram_batch_sizes, gen_start);
+    let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape(ck_hint1, true, ram_batch_sizes);
 
     // Initialize ck for the secondary
     let circuit_secondary: NovaAugmentedCircuit<'_, E1, C2> = NovaAugmentedCircuit::new(
@@ -191,7 +189,7 @@ where
     );
     let mut cs: ShapeCS<E2> = ShapeCS::new();
     let _ = circuit_secondary.synthesize(&mut cs);
-    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape(ck_hint2, false, vec![], &[]);
+    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape(ck_hint2, false, vec![]);
 
     if r1cs_shape_primary.num_io != 2 || r1cs_shape_secondary.num_io != 2 {
       return Err(NovaError::InvalidStepCircuitIO);
@@ -1081,9 +1079,9 @@ mod tests {
   use ff::PrimeField;
 
   type EE<E> = provider::ipa_pc::EvaluationEngine<E>;
-  // type EEPrime<E> = provider::hyperkzg::EvaluationEngine<E>;
+  type EEPrime<E> = provider::hyperkzg::EvaluationEngine<E>;
   type S<E, EE> = spartan::snark::RelaxedR1CSSNARK<E, EE>;
-  //  type SPrime<E, EE> = spartan::ppsnark::RelaxedR1CSSNARK<E, EE>;
+  //type SPrime<E, EE> = spartan::ppsnark::RelaxedR1CSSNARK<E, EE>;
 
   #[derive(Clone, Debug, Default)]
   struct CubicCircuit<F: PrimeField> {
@@ -1203,7 +1201,6 @@ mod tests {
       &*default_ck_hint(),
       &*default_ck_hint(),
       vec![],
-      &[],
     )
     .unwrap();
 
@@ -1238,7 +1235,7 @@ mod tests {
   #[test]
   fn test_ivc_trivial() {
     test_ivc_trivial_with::<PallasEngine, VestaEngine>();
-    //test_ivc_trivial_with::<Bn256EngineKZG, GrumpkinEngine>();
+    test_ivc_trivial_with::<Bn256EngineKZG, GrumpkinEngine>();
     test_ivc_trivial_with::<Secp256k1Engine, Secq256k1Engine>();
   }
 
@@ -1262,7 +1259,6 @@ mod tests {
       &*default_ck_hint(),
       &*default_ck_hint(),
       vec![],
-      &[],
     )
     .unwrap();
 
@@ -1329,7 +1325,7 @@ mod tests {
   #[test]
   fn test_ivc_nontrivial() {
     test_ivc_nontrivial_with::<PallasEngine, VestaEngine>();
-    //test_ivc_nontrivial_with::<Bn256EngineKZG, GrumpkinEngine>();
+    test_ivc_nontrivial_with::<Bn256EngineKZG, GrumpkinEngine>();
     test_ivc_nontrivial_with::<Secp256k1Engine, Secq256k1Engine>();
   }
 
@@ -1355,7 +1351,6 @@ mod tests {
       &*default_ck_hint(),
       &*default_ck_hint(),
       vec![],
-      &[],
     )
     .unwrap();
 
@@ -1431,8 +1426,8 @@ mod tests {
   #[test]
   fn test_ivc_nontrivial_with_compression() {
     test_ivc_nontrivial_with_compression_with::<PallasEngine, VestaEngine, EE<_>, EE<_>>();
-    // test_ivc_nontrivial_with_compression_with::<Bn256EngineKZG, GrumpkinEngine, EEPrime<_>, EE<_>>(
-    //  );
+    test_ivc_nontrivial_with_compression_with::<Bn256EngineKZG, GrumpkinEngine, EEPrime<_>, EE<_>>(
+    );
     test_ivc_nontrivial_with_compression_with::<Secp256k1Engine, Secq256k1Engine, EE<_>, EE<_>>();
   }
   /*test_ivc_nontrivial_with_spark_compression_with::<
@@ -1628,7 +1623,6 @@ mod tests {
       &*default_ck_hint(),
       &*default_ck_hint(),
       vec![],
-      &[],
     )
     .unwrap();
 
@@ -1702,7 +1696,7 @@ mod tests {
   #[test]
   fn test_ivc_nondet_with_compression() {
     test_ivc_nondet_with_compression_with::<PallasEngine, VestaEngine, EE<_>, EE<_>>();
-    //test_ivc_nondet_with_compression_with::<Bn256EngineKZG, GrumpkinEngine, EEPrime<_>, EE<_>>();
+    test_ivc_nondet_with_compression_with::<Bn256EngineKZG, GrumpkinEngine, EEPrime<_>, EE<_>>();
     test_ivc_nondet_with_compression_with::<Secp256k1Engine, Secq256k1Engine, EE<_>, EE<_>>();
   }
 
@@ -1726,7 +1720,6 @@ mod tests {
       &*default_ck_hint(),
       &*default_ck_hint(),
       vec![],
-      &[],
     )
     .unwrap();
 
@@ -1773,7 +1766,7 @@ mod tests {
   #[test]
   fn test_ivc_base() {
     test_ivc_base_with::<PallasEngine, VestaEngine>();
-    //test_ivc_base_with::<Bn256EngineKZG, GrumpkinEngine>();
+    test_ivc_base_with::<Bn256EngineKZG, GrumpkinEngine>();
     test_ivc_base_with::<Secp256k1Engine, Secq256k1Engine>();
   }
 
@@ -1813,7 +1806,6 @@ mod tests {
         &*default_ck_hint(),
         &*default_ck_hint(),
         vec![],
-        &[],
       );
     assert!(pp.is_err());
     assert_eq!(pp.err(), Some(NovaError::InvalidStepCircuitIO));
@@ -1827,15 +1819,13 @@ mod tests {
         &*default_ck_hint(),
         &*default_ck_hint(),
         vec![],
-        &[],
       );
     assert!(pp.is_err());
     assert_eq!(pp.err(), Some(NovaError::InvalidStepCircuitIO));
   }
 
-  /*
   #[test]
   fn test_setup() {
     test_setup_with::<Bn256EngineKZG, GrumpkinEngine>();
-  }*/
+  }
 }

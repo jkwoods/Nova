@@ -542,7 +542,7 @@ mod tests {
       NovaAugmentedCircuit::new(primary_params, None, &mut tc1, ro_consts1.clone(), false);
     let mut cs: TestShapeCS<E1> = TestShapeCS::new();
     let _ = circuit1.synthesize(&mut cs);
-    let (shape1, ck1) = cs.r1cs_shape(&*default_ck_hint(), false, vec![], &[]);
+    let (shape1, ck1) = cs.r1cs_shape(&*default_ck_hint(), false, vec![]);
     assert_eq!(cs.num_constraints(), num_constraints_primary);
 
     let mut tc2 = TrivialCircuit::default();
@@ -551,7 +551,7 @@ mod tests {
       NovaAugmentedCircuit::new(secondary_params, None, &mut tc2, ro_consts2.clone(), false);
     let mut cs: TestShapeCS<E2> = TestShapeCS::new();
     let _ = circuit2.synthesize(&mut cs);
-    let (shape2, ck2) = cs.r1cs_shape(&*default_ck_hint(), false, vec![], &[]);
+    let (shape2, ck2) = cs.r1cs_shape(&*default_ck_hint(), false, vec![]);
     assert_eq!(cs.num_constraints(), num_constraints_secondary);
 
     // Execute the base case for the primary
@@ -617,18 +617,17 @@ mod tests {
     );
   }
 
-  /*  #[test]
+  #[test]
   fn test_recursive_circuit_bn256_grumpkin() {
-    let params1 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true, 3);
-    let params2 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false, 3);
+    let params1 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true, 1, vec![]);
+    let params2 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false, 1, vec![]);
     let ro_consts1: ROConstantsCircuit<GrumpkinEngine> = PoseidonConstantsCircuit::default();
     let ro_consts2: ROConstantsCircuit<Bn256EngineKZG> = PoseidonConstantsCircuit::default();
 
     test_recursive_circuit_with::<Bn256EngineKZG, GrumpkinEngine>(
-      &params1, &params2, ro_consts1, ro_consts2, 14001,
-      14550, // 9985 -> 14001, 10538 -> 14550
+      &params1, &params2, ro_consts1, ro_consts2, 9985, 10538, // 9985 -> 14001, 10538 -> 14550
     );
-  }*/
+  }
 
   #[test]
   fn test_recursive_circuit_secpq() {

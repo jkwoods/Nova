@@ -272,7 +272,7 @@ mod tests {
     // First create the shape
     let mut cs: TestShapeCS<E> = TestShapeCS::new();
     let _ = synthesize_tiny_r1cs_bellpepper(&mut cs, None);
-    let (shape, ck) = cs.r1cs_shape(&*default_ck_hint(), false, vec![], &[]);
+    let (shape, ck) = cs.r1cs_shape(&*default_ck_hint(), false, vec![]);
     let ro_consts =
       <<E as Engine>::RO as ROTrait<<E as Engine>::Base, <E as Engine>::Scalar>>::Constants::default();
 
@@ -308,7 +308,7 @@ mod tests {
   #[test]
   fn test_tiny_r1cs_bellpepper() {
     test_tiny_r1cs_bellpepper_with::<PallasEngine>();
-    //test_tiny_r1cs_bellpepper_with::<Bn256EngineKZG>();
+    test_tiny_r1cs_bellpepper_with::<Bn256EngineKZG>();
     test_tiny_r1cs_bellpepper_with::<Secp256k1Engine>();
   }
 
@@ -438,7 +438,7 @@ mod tests {
   #[test]
   fn test_tiny_r1cs_relaxed_derandomize() {
     test_tiny_r1cs_relaxed_derandomize_with::<PallasEngine>();
-    //test_tiny_r1cs_relaxed_derandomize_with::<Bn256EngineKZG>();
+    test_tiny_r1cs_relaxed_derandomize_with::<Bn256EngineKZG>();
     test_tiny_r1cs_relaxed_derandomize_with::<Secp256k1Engine>();
   }
 
@@ -516,7 +516,7 @@ mod tests {
     };
 
     // generate generators and ro constants
-    let ck = R1CS::<E>::commitment_key(&S, &*default_ck_hint(), &[]);
+    let ck = R1CS::<E>::commitment_key(&S, &*default_ck_hint());
     let ro_consts =
       <<E as Engine>::RO as ROTrait<<E as Engine>::Base, <E as Engine>::Scalar>>::Constants::default();
 
@@ -584,7 +584,7 @@ mod tests {
   #[test]
   fn test_tiny_r1cs_relaxed() {
     test_tiny_r1cs_relaxed_with::<PallasEngine>();
-    //test_tiny_r1cs_relaxed_with::<Bn256EngineKZG>();
+    test_tiny_r1cs_relaxed_with::<Bn256EngineKZG>();
     test_tiny_r1cs_relaxed_with::<Secp256k1Engine>();
   }
 
@@ -657,7 +657,7 @@ mod tests {
     };
 
     // generate generators and ro constants
-    let ck = R1CS::<E>::commitment_key(&S, &*default_ck_hint(), &[]);
+    let ck = R1CS::<E>::commitment_key(&S, &*default_ck_hint());
     let ro_consts =
       <<E as Engine>::RO as ROTrait<<E as Engine>::Base, <E as Engine>::Scalar>>::Constants::default();
 
@@ -721,7 +721,7 @@ mod tests {
   #[test]
   fn test_tiny_r1cs() {
     test_tiny_r1cs_with::<PallasEngine>();
-    //test_tiny_r1cs_with::<Bn256EngineKZG>();
+    test_tiny_r1cs_with::<Bn256EngineKZG>();
     test_tiny_r1cs_with::<Secp256k1Engine>();
   }
 }

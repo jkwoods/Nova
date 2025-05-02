@@ -97,20 +97,12 @@ impl<E: Engine> R1CS<E> {
   /// * `ck_floor`: A function that provides a floor for the number of generators. A good function
   ///   to provide is the ck_floor field defined in the trait `RelaxedR1CSSNARKTrait`.
   ///
-  pub fn commitment_key(
-    S: &R1CSShape<E>,
-    ck_floor: &CommitmentKeyHint<E>,
-    gen_start: &[&CommitmentKey<E>],
-  ) -> CommitmentKey<E> {
+  pub fn commitment_key(S: &R1CSShape<E>, ck_floor: &CommitmentKeyHint<E>) -> CommitmentKey<E> {
     let num_cons = S.num_cons;
     let num_vars = S.num_vars;
     let ck_hint = ck_floor(S);
 
-    if gen_start.len() >= 1 {
-      E::CE::setup_with_start(b"ck", max(max(num_cons, num_vars), ck_hint), gen_start)
-    } else {
-      E::CE::setup(b"ck", max(max(num_cons, num_vars), ck_hint))
-    }
+    E::CE::setup(b"ck", max(max(num_cons, num_vars), ck_hint))
   }
 }
 
@@ -535,20 +527,29 @@ impl<E: Engine> R1CSWitness<E> {
 
   /// Commits to the witness using the supplied generators
   pub fn commit(&self, ck: &CommitmentKey<E>) -> Vec<Commitment<E>> {
-    let mut cks = Vec::new();
-    let mut rest = ck.clone();
-    let mut new_ck;
-    for wi in self.W.iter() {
-      (new_ck, rest) = CE::<E>::split_key_at(&rest, wi.len());
-      cks.push(new_ck);
+    let mut pad_lens = vec![(0, 0); self.W.len()];
+    for (i, w) in self.W.iter().enumerate() {
+      for j in 0..pad_lens.len() {
+        if i < j {
+          pad_lens[j].0 += w.len();
+        } else if i > j {
+          pad_lens[j].1 += w.len();
+        }
+      }
     }
 
     self
       .W
       .par_iter()
-      .zip(cks.par_iter())
       .zip(self.r_W.par_iter())
-      .map(|((w_vec, small_ck), blind)| CE::<E>::commit(small_ck, w_vec, blind))
+      .zip(pad_lens.par_iter())
+      .map(|((w, blind), (start_zeros, end_zeros))| {
+        let mut padded_w = vec![E::Scalar::ZERO; *start_zeros];
+        padded_w.extend(w.clone());
+        padded_w.extend(vec![E::Scalar::ZERO; *end_zeros]);
+
+        CE::<E>::commit(ck, &padded_w, blind)
+      })
       .collect()
   }
 }
@@ -608,21 +609,30 @@ impl<E: Engine> RelaxedR1CSWitness<E> {
 
   /// Commits to the witness using the supplied generators
   pub fn commit(&self, ck: &CommitmentKey<E>) -> (Vec<Commitment<E>>, Commitment<E>) {
-    let mut cks = Vec::new();
-    let mut rest = ck.clone();
-    let mut new_ck;
-    for wi in self.W.iter() {
-      (new_ck, rest) = CE::<E>::split_key_at(&rest, wi.len());
-      cks.push(new_ck);
+    let mut pad_lens = vec![(0, 0); self.W.len()];
+    for (i, w) in self.W.iter().enumerate() {
+      for j in 0..pad_lens.len() {
+        if i < j {
+          pad_lens[j].0 += w.len();
+        } else if i > j {
+          pad_lens[j].1 += w.len();
+        }
+      }
     }
 
     (
       self
         .W
         .par_iter()
-        .zip(cks.par_iter())
-        .zip(&self.r_W)
-        .map(|((w_vec, small_ck), blind)| CE::<E>::commit(small_ck, w_vec, &blind))
+        .zip(self.r_W.par_iter())
+        .zip(pad_lens.par_iter())
+        .map(|((w, blind), (start_zeros, end_zeros))| {
+          let mut padded_w = vec![E::Scalar::ZERO; *start_zeros];
+          padded_w.extend(w.clone());
+          padded_w.extend(vec![E::Scalar::ZERO; *end_zeros]);
+
+          CE::<E>::commit(ck, &padded_w, blind)
+        })
         .collect(),
       CE::<E>::commit(ck, &self.E, &self.r_E),
     )
@@ -1009,13 +1019,13 @@ mod tests {
   #[test]
   fn test_pad_tiny_r1cs() {
     test_pad_tiny_r1cs_with::<PallasEngine>();
-    //test_pad_tiny_r1cs_with::<Bn256EngineKZG>();
+    test_pad_tiny_r1cs_with::<Bn256EngineKZG>();
     test_pad_tiny_r1cs_with::<Secp256k1Engine>();
   }
 
   fn test_random_sample_with<E: Engine>() {
     let r1cs = tiny_r1cs::<E>(4);
-    let ck = R1CS::<E>::commitment_key(&r1cs, &*default_ck_hint(), &[]);
+    let ck = R1CS::<E>::commitment_key(&r1cs, &*default_ck_hint());
     let (inst, wit) = r1cs.sample_random_instance_witness(&ck).unwrap();
     assert!(r1cs.is_sat_relaxed(&ck, &inst, &wit).is_ok());
   }
@@ -1023,7 +1033,7 @@ mod tests {
   #[test]
   fn test_random_sample() {
     test_random_sample_with::<PallasEngine>();
-    //  test_random_sample_with::<Bn256EngineKZG>();
+    test_random_sample_with::<Bn256EngineKZG>();
     test_random_sample_with::<Secp256k1Engine>();
   }
 }

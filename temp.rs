@@ -532,14 +532,11 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     let powers_of_rho = powers::<E>(&rho, num_claims);
 
     // make into ML polys
-    let polys_w: Vec<MultilinearPolynomial<E::Scalar>> = W
-      .W
-      .iter()
-      .map(|e| MultilinearPolynomial::new(e.clone()))
-      .collect();
+    let polys_w: Vec<MultilinearPolynomial<E::Scalar>> =
+      W.W.iter().map(|&e| MultilinearPolynomial::new(e)).collect();
     let polys_sel: Vec<MultilinearPolynomial<E::Scalar>> = selector_evals
       .iter()
-      .map(|e| MultilinearPolynomial::new(e.clone()))
+      .map(|&e| MultilinearPolynomial::new(e))
       .collect();
 
     let comb_func = |poly_wit: &E::Scalar,
@@ -559,21 +556,18 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     )?;
 
     // prove poly evals (batch with SNARK) - outside function
-    let w_vec = W
+    let w_vec = W.W.iter().map(|&wv| PolyEvalWitness { p: wv }).collect();
+
+    let eval_W: Vec<MultilinearPolynomial<E::Scalar>> = W
       .W
       .iter()
-      .map(|wv| PolyEvalWitness { p: wv.clone() })
+      .map(|wv| MultilinearPolynomial::evaluate_with(&wv, &r))
       .collect();
-
     let u_vec = U
       .comm_W
       .iter()
-      .zip(W.W.iter())
-      .map(|(&c, w)| PolyEvalInstance {
-        c: c,
-        x: r.clone(),
-        e: MultilinearPolynomial::evaluate_with(&w, &r),
-      })
+      .zip(eval_W.iter())
+      .map(|(c, e)| PolyEvalInstance { c: c, x: r, e: e })
       .collect();
 
     Ok((

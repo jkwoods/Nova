@@ -206,7 +206,7 @@ where
     }
   }
 
-  fn setup_with_start(
+  /*fn setup_with_start(
     label: &'static [u8],
     n: usize,
     gen_start: &[&Self::CommitmentKey],
@@ -224,7 +224,7 @@ where
       ck: gens,
       h: Some(h.clone()),
     }
-  }
+  }*/
 
   fn derand_key(ck: &Self::CommitmentKey) -> Self::DerandKey {
     assert!(ck.h.is_some());
@@ -233,7 +233,7 @@ where
     }
   }
 
-  fn split_key_at(
+  /*fn split_key_at(
     ck: &Self::CommitmentKey,
     n: usize,
   ) -> (Self::CommitmentKey, Self::CommitmentKey) {
@@ -252,7 +252,7 @@ where
       .extend(E::GE::from_label(b"padding", n.next_power_of_two() - n));
 
     (key1, key2)
-  }
+  }*/
 
   fn commit(ck: &Self::CommitmentKey, v: &[E::Scalar], r: &E::Scalar) -> Self::Commitment {
     assert!(

@@ -176,7 +176,6 @@ fn main() {
       &*S1::ck_floor(),
       &*S2::ck_floor(),
       vec![2],
-      &[],
     )
     .unwrap();
     println!("PublicParams::setup, took {:?} ", start.elapsed());

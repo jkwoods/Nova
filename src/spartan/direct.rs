@@ -115,7 +115,7 @@ impl<E: Engine, S: RelaxedR1CSSNARKTrait<E>, C: StepCircuit<E::Scalar>> DirectSN
     let mut cs: ShapeCS<E> = ShapeCS::new();
     let _ = circuit.synthesize(&mut cs);
 
-    let (shape, ck) = cs.r1cs_shape(&*S::ck_floor(), false, vec![], &[]);
+    let (shape, ck) = cs.r1cs_shape(&*S::ck_floor(), false, vec![]);
 
     let (pk, vk) = S::setup(&ck, &shape)?;
 

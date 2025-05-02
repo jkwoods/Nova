@@ -2,6 +2,7 @@
 use crate::{
   errors::NovaError,
   r1cs::{R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness},
+  spartan::PolyEvalWitness,
   traits::Engine,
   CommitmentKey,
 };
@@ -63,11 +64,13 @@ pub trait RelaxedR1CSSNARKTrait<E: Engine>:
     pk: &Self::ProverKey,
     U: &RelaxedR1CSInstance<E>,
     W: &RelaxedR1CSWitness<E>,
+    transcript: &mut E::TE,
   ) -> Result<
     (
       RelaxedR1CSInstance<E>,
       RelaxedR1CSWitness<E>,
       Self::UnsplitProof,
+      Vec<PolyEvalWitness<E>>,
     ),
     NovaError,
   >;
@@ -77,6 +80,7 @@ pub trait RelaxedR1CSSNARKTrait<E: Engine>:
     vk: &Self::VerifierKey,
     p: &Self::UnsplitProof,
     U: &RelaxedR1CSInstance<E>,
+    transcript: &mut E::TE,
   ) -> Result<RelaxedR1CSInstance<E>, NovaError>;
 }
 

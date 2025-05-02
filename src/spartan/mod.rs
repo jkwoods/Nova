@@ -22,6 +22,7 @@ use crate::{
 use ff::Field;
 use itertools::Itertools as _;
 use rayon::{iter::IntoParallelRefIterator, prelude::*};
+use serde::{Deserialize, Serialize};
 
 // Creates a vector of the first `n` powers of `s`.
 fn powers<E: Engine>(s: &E::Scalar, n: usize) -> Vec<E::Scalar> {
@@ -35,7 +36,7 @@ fn powers<E: Engine>(s: &E::Scalar, n: usize) -> Vec<E::Scalar> {
 }
 
 /// A type that holds a witness to a polynomial evaluation instance
-struct PolyEvalWitness<E: Engine> {
+pub struct PolyEvalWitness<E: Engine> {
   p: Vec<E::Scalar>, // polynomial
 }
 
@@ -162,7 +163,9 @@ impl<E: Engine> PolyEvalWitness<E> {
 }
 
 /// A type that holds a polynomial evaluation instance
-struct PolyEvalInstance<E: Engine> {
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(bound = "")]
+pub struct PolyEvalInstance<E: Engine> {
   c: Commitment<E>,  // commitment to the polynomial
   x: Vec<E::Scalar>, // evaluation point
   e: E::Scalar,      // claimed evaluation

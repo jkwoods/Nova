@@ -11,7 +11,7 @@ use crate::{
   provider::traits::{DlogGroup, PairingGroup},
   traits::{
     commitment::{CommitmentEngineTrait, CommitmentTrait, Len},
-    evaluation::{EvaluationEngineTrait, UnsplitProofTrait},
+    evaluation::EvaluationEngineTrait,
     AbsorbInROTrait, Engine, ROTrait, TranscriptEngineTrait, TranscriptReprTrait,
   },
   zip_with, R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness,
@@ -211,23 +211,8 @@ where
     Self::CommitmentKey { ck, h, tau_H }
   }
 
-  fn setup_with_start(
-    label: &'static [u8],
-    n: usize,
-    gen_start: &[&Self::CommitmentKey],
-  ) -> Self::CommitmentKey {
-    unimplemented!()
-  }
-
   fn derand_key(ck: &Self::CommitmentKey) -> Self::DerandKey {
     Self::DerandKey { h: ck.h.clone() }
-  }
-
-  fn split_key_at(
-    ck: &Self::CommitmentKey,
-    n: usize,
-  ) -> (Self::CommitmentKey, Self::CommitmentKey) {
-    unimplemented!();
   }
 
   fn commit(ck: &Self::CommitmentKey, v: &[E::Scalar], r: &E::Scalar) -> Self::Commitment {
@@ -271,19 +256,6 @@ where
   G: G1Affine<E>,
   H: G2Affine<E>,
   tau_H: G2Affine<E>,
-}
-
-/// A type that holds unsplitting proof information
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(bound = "")]
-pub struct UnsplitProof<E: Engine> {
-  _p: PhantomData<E>,
-}
-
-impl<E: Engine> UnsplitProofTrait<E> for UnsplitProof<E> {
-  fn get_comm_W(&self) -> <E::CE as CommitmentEngineTrait<E>>::Commitment {
-    unimplemented!();
-  }
 }
 
 /// Provides an implementation of a polynomial evaluation argument
@@ -355,7 +327,6 @@ where
   type EvaluationArgument = EvaluationArgument<E>;
   type ProverKey = ProverKey<E>;
   type VerifierKey = VerifierKey<E>;
-  type UnsplitProof = UnsplitProof<E>;
 
   fn setup(
     ck: &<E::CE as CommitmentEngineTrait<E>>::CommitmentKey,
@@ -672,33 +643,6 @@ where
     }
 
     Ok(())
-  }
-
-  /// Proves unsplit witnesses
-  fn prove_unsplit_witnesses(
-    ck: &CommitmentKey<E>,
-    pk: &Self::ProverKey,
-    U: &RelaxedR1CSInstance<E>,
-    W: &RelaxedR1CSWitness<E>,
-  ) -> Result<
-    (
-      RelaxedR1CSInstance<E>,
-      RelaxedR1CSWitness<E>,
-      Self::UnsplitProof,
-    ),
-    NovaError,
-  > {
-    unimplemented!();
-  }
-
-  /// Verifies unsplit witnesses
-  fn verify_unsplit_witnesses(
-    vk: &Self::VerifierKey,
-    p: &Self::UnsplitProof,
-    U: &RelaxedR1CSInstance<E>,
-    S: &R1CSShape<E>,
-  ) -> Result<RelaxedR1CSInstance<E>, NovaError> {
-    unimplemented!();
   }
 }
 
