@@ -21,10 +21,9 @@ where
   E1::GE: DlogGroup,
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
-  CommitmentKey<E1>: CommitmentKeyExtTrait<E1>,
 {
-  /// pedersen gens  
-  pub ped_gen: CommitmentKey<E1>,
+  /// kzg gens  
+  pub kzg_gen: CommitmentKey<E1>,
   pos_constants: ROConstants<E1>,
   _p: PhantomData<E2>,
 }
@@ -34,36 +33,16 @@ where
   E1::GE: DlogGroup,
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
-  CommitmentKey<E1>: CommitmentKeyExtTrait<E1>,
 {
-  /// setup generators
-  pub fn setup(label: &'static [u8], size: usize) -> Self {
-    let ped_gen = E1::CE::setup(label, size);
+  /// setup
+  pub fn setup(kzg_gen: CommitmentKey<E1>) -> Self {
     let pos_constants: ROConstants<E1> = ROConstants::<E1>::default();
 
     Incremental::<E1, E2> {
-      ped_gen,
+      kzg_gen,
       pos_constants,
       _p: PhantomData::default(),
     }
-  }
-
-  /// split generators for split wits
-  pub fn split_at(&self, n: usize) -> (Self, Self) {
-    let (ped_gen_a, ped_gen_b) = self.ped_gen.split_at(n);
-
-    (
-      Incremental::<E1, E2> {
-        ped_gen: ped_gen_a,
-        pos_constants: self.pos_constants.clone(),
-        _p: PhantomData::default(),
-      },
-      Incremental::<E1, E2> {
-        ped_gen: ped_gen_b,
-        pos_constants: self.pos_constants.clone(),
-        _p: PhantomData::default(),
-      },
-    )
   }
 
   /// commit incrementally to chunk of list
@@ -77,19 +56,24 @@ where
     }
 
     let blind = E1::Scalar::random(&mut OsRng);
-    let ped_cmt = E1::CE::commit(&self.ped_gen, w, &blind);
+    //println!("committing to {:#?} with blind {:#?}", w, blind);
+    let kzg_cmt = E1::CE::commit(&self.kzg_gen, w, &blind);
 
-    let ped_coords = ped_cmt.to_coordinates();
+    //println!("cmt in clear {:#?}", kzg_cmt);
 
-    cc.absorb(ped_coords.0);
-    cc.absorb(ped_coords.1);
-    cc.absorb(if ped_coords.2 {
+    let kzg_coords = kzg_cmt.to_coordinates();
+    //println!("x {:#?}", kzg_coords.0);
+
+    cc.absorb(kzg_coords.0);
+    cc.absorb(kzg_coords.1);
+    cc.absorb(if kzg_coords.2 {
       E2::Scalar::ONE
     } else {
       E2::Scalar::ZERO
     });
 
     let cc_hash = cc.squeeze(NUM_HASH_BITS);
+    //println!("hash in clear {:#?}", scalar_as_base::<E1>(cc_hash));
 
     (scalar_as_base::<E1>(cc_hash), blind)
   }

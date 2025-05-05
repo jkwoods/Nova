@@ -211,6 +211,8 @@ where
     Self::CommitmentKey { ck, h, tau_H }
   }
 
+  fn extend_key(ck: &Self::CommitmentKey) -> Self::CommitmentKey {}
+
   fn derand_key(ck: &Self::CommitmentKey) -> Self::DerandKey {
     Self::DerandKey { h: ck.h.clone() }
   }
