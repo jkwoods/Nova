@@ -1,21 +1,16 @@
 //! This example executes a batch of 64-bit AND operations.
 //! It performs the AND operation by first decomposing the operands into bits and then performing the operation bit-by-bit.
 //! We execute a configurable number of AND operations per step of Nova's recursion.
-use bellpepper_core::{
-  boolean::AllocatedBit, num::AllocatedNum, ConstraintSystem, LinearCombination, SynthesisError,
-};
 use core::marker::PhantomData;
-use ff::Field;
-use ff::{PrimeField, PrimeFieldBits};
+use ff::{Field, PrimeField, PrimeFieldBits};
 use flate2::{write::ZlibEncoder, Compression};
 use nova_snark::{
-  provider::{Bn256EngineKZG, GrumpkinEngine},
-  traits::{
-    circuit::{StepCircuit, TrivialCircuit},
-    snark::RelaxedR1CSSNARKTrait,
-    Engine, Group,
+  frontend::{
+    num::AllocatedNum, AllocatedBit, ConstraintSystem, LinearCombination, SynthesisError,
   },
-  CompressedSNARK, PublicParams, RecursiveSNARK,
+  nova::{CompressedSNARK, PublicParams, RecursiveSNARK},
+  provider::{Bn256EngineKZG, GrumpkinEngine},
+  traits::{circuit::StepCircuit, snark::RelaxedR1CSSNARKTrait, Engine, Group},
 };
 use rand::Rng;
 use std::time::Instant;
@@ -73,7 +68,7 @@ pub fn u64_into_bit_vec_le<Scalar: PrimeField, CS: ConstraintSystem<Scalar>>(
       let mut tmp = Vec::with_capacity(64);
 
       for i in 0..64 {
-        tmp.push(Some(*value >> i & 1 == 1));
+        tmp.push(Some((*value >> i) & 1 == 1));
       }
 
       tmp
@@ -210,8 +205,7 @@ fn main() {
   let num_steps = 32;
   for num_ops_per_step in [1024, 2048, 4096, 8192, 16384, 32768, 65536] {
     // number of instances of AND per Nova's recursive step
-    let mut circuit_primary = AndCircuit::new(num_ops_per_step);
-    let mut circuit_secondary = TrivialCircuit::default();
+    let circuit = AndCircuit::new(num_ops_per_step);
 
     println!(
       "Proving {} AND ops ({num_ops_per_step} instances per step and {num_steps} steps)",
@@ -221,14 +215,8 @@ fn main() {
     // produce public parameters
     let start = Instant::now();
     println!("Producing public parameters...");
-    let pp = PublicParams::<
-      E1,
-      E2,
-      AndCircuit<<E1 as Engine>::GE>,
-      TrivialCircuit<<E2 as Engine>::Scalar>,
-    >::setup(
-      &mut circuit_primary,
-      &mut circuit_secondary,
+    let pp = PublicParams::<E1, E2, AndCircuit<<E1 as Engine>::GE>>::setup(
+      &circuit,
       &*S1::ck_floor(),
       &*S2::ck_floor(),
       vec![2],
@@ -259,32 +247,17 @@ fn main() {
       .map(|_| AndCircuit::new(num_ops_per_step))
       .collect::<Vec<_>>();
 
-    type C1 = AndCircuit<<E1 as Engine>::GE>;
-    type C2 = TrivialCircuit<<E2 as Engine>::Scalar>;
+    type C = AndCircuit<<E1 as Engine>::GE>;
 
     // produce a recursive SNARK
     println!("Generating a RecursiveSNARK...");
-    let mut recursive_snark: RecursiveSNARK<E1, E2, C1, C2> =
-      RecursiveSNARK::<E1, E2, C1, C2>::new(
-        &pp,
-        &mut circuits[0],
-        &mut circuit_secondary,
-        &[<E1 as Engine>::Scalar::zero()],
-        &[<E2 as Engine>::Scalar::zero()],
-        None,
-        vec![],
-      )
-      .unwrap();
+    let mut recursive_snark: RecursiveSNARK<E1, E2, C> =
+      RecursiveSNARK::<E1, E2, C>::new(&pp, &circuits[0], &[<E1 as Engine>::Scalar::zero()])
+        .unwrap();
 
     let start = Instant::now();
-    for mut circuit_primary in circuits.into_iter() {
-      let res = recursive_snark.prove_step(
-        &pp,
-        &mut circuit_primary,
-        &mut circuit_secondary,
-        None,
-        vec![],
-      );
+    for circuit in circuits.iter() {
+      let res = recursive_snark.prove_step(&pp, circuit);
       assert!(res.is_ok());
     }
     println!(
@@ -295,22 +268,17 @@ fn main() {
 
     // verify the recursive SNARK
     println!("Verifying a RecursiveSNARK...");
-    let res = recursive_snark.verify(
-      &pp,
-      num_steps,
-      &[<E1 as Engine>::Scalar::ZERO],
-      &[<E2 as Engine>::Scalar::ZERO],
-    );
+    let res = recursive_snark.verify(&pp, num_steps, &[<E1 as Engine>::Scalar::ZERO]);
     println!("RecursiveSNARK::verify: {:?}", res.is_ok(),);
     assert!(res.is_ok());
 
     // produce a compressed SNARK
     println!("Generating a CompressedSNARK using Spartan with HyperKZG...");
-    let (pk, vk) = CompressedSNARK::<_, _, _, _, S1, S2>::setup(&pp).unwrap();
+    let (pk, vk) = CompressedSNARK::<_, _, _, S1, S2>::setup(&pp).unwrap();
 
     let start = Instant::now();
 
-    let res = CompressedSNARK::<_, _, _, _, S1, S2>::prove(&pp, &pk, &recursive_snark);
+    let res = CompressedSNARK::<_, _, _, S1, S2>::prove(&pp, &pk, &recursive_snark);
     println!(
       "CompressedSNARK::prove: {:?}, took {:?}",
       res.is_ok(),
@@ -330,12 +298,7 @@ fn main() {
     // verify the compressed SNARK
     println!("Verifying a CompressedSNARK...");
     let start = Instant::now();
-    let res = compressed_snark.verify(
-      &vk,
-      num_steps,
-      &[<E1 as Engine>::Scalar::ZERO],
-      &[<E2 as Engine>::Scalar::ZERO],
-    );
+    let res = compressed_snark.verify(&vk, num_steps, &[<E1 as Engine>::Scalar::ZERO]);
     println!(
       "CompressedSNARK::verify: {:?}, took {:?}",
       res.is_ok(),

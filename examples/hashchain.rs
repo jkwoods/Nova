@@ -1,26 +1,19 @@
 //! This example proves the knowledge of preimage to a hash chain tail, with a configurable number of elements per hash chain node.
 //! The output of each step tracks the current tail of the hash chain
-use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::Field;
 use flate2::{write::ZlibEncoder, Compression};
 use generic_array::typenum::U24;
-use neptune::{
-  circuit2::Elt,
-  sponge::{
-    api::{IOPattern, SpongeAPI, SpongeOp},
-    circuit::SpongeCircuit,
-    vanilla::{Mode::Simplex, Sponge, SpongeTrait},
-  },
-  Strength,
-};
 use nova_snark::{
-  provider::{Bn256EngineKZG, GrumpkinEngine},
-  traits::{
-    circuit::{StepCircuit, TrivialCircuit},
-    snark::RelaxedR1CSSNARKTrait,
-    Engine, Group,
+  frontend::{
+    gadgets::poseidon::{
+      Elt, IOPattern, Simplex, Sponge, SpongeAPI, SpongeCircuit, SpongeOp, SpongeTrait, Strength,
+    },
+    num::AllocatedNum,
+    ConstraintSystem, SynthesisError,
   },
-  CompressedSNARK, PublicParams, RecursiveSNARK,
+  nova::{CompressedSNARK, PublicParams, RecursiveSNARK},
+  provider::{Bn256EngineKZG, GrumpkinEngine},
+  traits::{circuit::StepCircuit, snark::RelaxedR1CSSNARKTrait, Engine, Group},
 };
 use std::time::Instant;
 
@@ -91,9 +84,9 @@ impl<G: Group> StepCircuit<G::Scalar> for HashChainCircuit<G> {
       let acc = &mut ns;
 
       sponge.start(parameter, None, acc);
-      neptune::sponge::api::SpongeAPI::absorb(&mut sponge, num_absorbs, &elt, acc);
+      SpongeAPI::absorb(&mut sponge, num_absorbs, &elt, acc);
 
-      let output = neptune::sponge::api::SpongeAPI::squeeze(&mut sponge, 1, acc);
+      let output = SpongeAPI::squeeze(&mut sponge, 1, acc);
       sponge.finish(acc).unwrap();
       Elt::ensure_allocated(&output[0], &mut ns.namespace(|| "ensure allocated"), true)?
     };
@@ -111,20 +104,13 @@ fn main() {
   let num_steps = 10;
   for num_elts_per_step in [1024, 2048, 4096] {
     // number of instances of AND per Nova's recursive step
-    let mut circuit_primary = HashChainCircuit::new(num_elts_per_step);
-    let mut circuit_secondary = TrivialCircuit::default();
+    let circuit = HashChainCircuit::new(num_elts_per_step);
 
     // produce public parameters
     let start = Instant::now();
     println!("Producing public parameters...");
-    let pp = PublicParams::<
-      E1,
-      E2,
-      HashChainCircuit<<E1 as Engine>::GE>,
-      TrivialCircuit<<E2 as Engine>::Scalar>,
-    >::setup(
-      &mut circuit_primary,
-      &mut circuit_secondary,
+    let pp = PublicParams::<E1, E2, HashChainCircuit<<E1 as Engine>::GE>>::setup(
+      &circuit,
       &*S1::ck_floor(),
       &*S2::ck_floor(),
       vec![2],
@@ -155,34 +141,19 @@ fn main() {
       .map(|_| HashChainCircuit::new(num_elts_per_step))
       .collect::<Vec<_>>();
 
-    type C1 = HashChainCircuit<<E1 as Engine>::GE>;
-    type C2 = TrivialCircuit<<E2 as Engine>::Scalar>;
+    type C = HashChainCircuit<<E1 as Engine>::GE>;
 
     // produce a recursive SNARK
     println!(
       "Generating a RecursiveSNARK with {num_elts_per_step} field elements per hashchain node..."
     );
-    let mut recursive_snark: RecursiveSNARK<E1, E2, C1, C2> =
-      RecursiveSNARK::<E1, E2, C1, C2>::new(
-        &pp,
-        &mut circuits[0],
-        &mut circuit_secondary,
-        &[<E1 as Engine>::Scalar::zero()],
-        &[<E2 as Engine>::Scalar::zero()],
-        None,
-        vec![],
-      )
-      .unwrap();
+    let mut recursive_snark: RecursiveSNARK<E1, E2, C> =
+      RecursiveSNARK::<E1, E2, C>::new(&pp, &circuits[0], &[<E1 as Engine>::Scalar::zero()])
+        .unwrap();
 
-    for (i, mut circuit_primary) in circuits.into_iter().enumerate() {
+    for (i, circuit) in circuits.iter().enumerate() {
       let start = Instant::now();
-      let res = recursive_snark.prove_step(
-        &pp,
-        &mut circuit_primary,
-        &mut circuit_secondary,
-        None,
-        vec![],
-      );
+      let res = recursive_snark.prove_step(&pp, circuit);
       assert!(res.is_ok());
 
       println!("RecursiveSNARK::prove {} : took {:?} ", i, start.elapsed());
@@ -190,22 +161,17 @@ fn main() {
 
     // verify the recursive SNARK
     println!("Verifying a RecursiveSNARK...");
-    let res = recursive_snark.verify(
-      &pp,
-      num_steps,
-      &[<E1 as Engine>::Scalar::ZERO],
-      &[<E2 as Engine>::Scalar::ZERO],
-    );
+    let res = recursive_snark.verify(&pp, num_steps, &[<E1 as Engine>::Scalar::ZERO]);
     println!("RecursiveSNARK::verify: {:?}", res.is_ok(),);
     assert!(res.is_ok());
 
     // produce a compressed SNARK
     println!("Generating a CompressedSNARK using Spartan with HyperKZG...");
-    let (pk, vk) = CompressedSNARK::<_, _, _, _, S1, S2>::setup(&pp).unwrap();
+    let (pk, vk) = CompressedSNARK::<_, _, _, S1, S2>::setup(&pp).unwrap();
 
     let start = Instant::now();
 
-    let res = CompressedSNARK::<_, _, _, _, S1, S2>::prove(&pp, &pk, &recursive_snark);
+    let res = CompressedSNARK::<_, _, _, S1, S2>::prove(&pp, &pk, &recursive_snark);
     println!(
       "CompressedSNARK::prove: {:?}, took {:?}",
       res.is_ok(),
@@ -225,12 +191,7 @@ fn main() {
     // verify the compressed SNARK
     println!("Verifying a CompressedSNARK...");
     let start = Instant::now();
-    let res = compressed_snark.verify(
-      &vk,
-      num_steps,
-      &[<E1 as Engine>::Scalar::ZERO],
-      &[<E2 as Engine>::Scalar::ZERO],
-    );
+    let res = compressed_snark.verify(&vk, num_steps, &[<E1 as Engine>::Scalar::ZERO]);
     println!(
       "CompressedSNARK::verify: {:?}, took {:?}",
       res.is_ok(),

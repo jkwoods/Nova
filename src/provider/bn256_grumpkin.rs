@@ -1,21 +1,24 @@
 //! This module implements the Nova traits for `bn256::Point`, `bn256::Scalar`, `grumpkin::Point`, `grumpkin::Scalar`.
 use crate::{
   impl_traits,
-  provider::traits::{DlogGroup, PairingGroup},
+  provider::{
+    msm::{msm, msm_small},
+    traits::{DlogGroup, DlogGroupExt, PairingGroup},
+  },
   traits::{Group, PrimeFieldExt, TranscriptReprTrait},
 };
 use digest::{ExtendableOutput, Update};
-use ff::{FromUniformBytes, PrimeField};
-use group::{cofactor::CofactorCurveAffine, Curve, Group as AnotherGroup};
-use num_bigint::BigInt;
-use num_traits::Num;
-// Remove this when https://github.com/zcash/pasta_curves/issues/41 resolves
+use ff::FromUniformBytes;
 use halo2curves::{
-  bn256::{pairing, G1Affine as Bn256Affine, G2Affine, G2Compressed, Gt, G1 as Bn256Point, G2},
+  bn256::{Bn256, G1Affine as Bn256Affine, G2Affine, G2Compressed, Gt, G1 as Bn256Point, G2},
+  group::{cofactor::CofactorCurveAffine, Curve, Group as AnotherGroup},
   grumpkin::{G1Affine as GrumpkinAffine, G1 as GrumpkinPoint},
-  msm::best_multiexp,
+  pairing::Engine as H2CEngine,
+  CurveAffine, CurveExt,
 };
-use pasta_curves::arithmetic::{CurveAffine, CurveExt};
+use num_bigint::BigInt;
+use num_integer::Integer;
+use num_traits::{Num, ToPrimitive};
 use rayon::prelude::*;
 use sha3::Shake256;
 use std::io::Read;
@@ -30,13 +33,40 @@ pub mod grumpkin {
   pub use halo2curves::grumpkin::{Fq as Base, Fr as Scalar, G1Affine as Affine, G1 as Point};
 }
 
-impl_traits!(
+crate::impl_traits_no_dlog_ext!(
   bn256,
   Bn256Point,
   Bn256Affine,
   "30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001",
   "30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47"
 );
+
+impl DlogGroupExt for bn256::Point {
+  #[cfg(not(feature = "blitzar"))]
+  fn vartime_multiscalar_mul(scalars: &[Self::Scalar], bases: &[Self::AffineGroupElement]) -> Self {
+    msm(scalars, bases)
+  }
+
+  fn vartime_multiscalar_mul_small<T: Integer + Into<u64> + Copy + Sync + ToPrimitive>(
+    scalars: &[T],
+    bases: &[Self::AffineGroupElement],
+  ) -> Self {
+    msm_small(scalars, bases)
+  }
+
+  #[cfg(feature = "blitzar")]
+  fn vartime_multiscalar_mul(scalars: &[Self::Scalar], bases: &[Self::AffineGroupElement]) -> Self {
+    super::blitzar::vartime_multiscalar_mul(scalars, bases)
+  }
+
+  #[cfg(feature = "blitzar")]
+  fn batch_vartime_multiscalar_mul(
+    scalars: &[Vec<Self::Scalar>],
+    bases: &[Self::AffineGroupElement],
+  ) -> Vec<Self> {
+    super::blitzar::batch_vartime_multiscalar_mul(scalars, bases)
+  }
+}
 
 impl_traits!(
   grumpkin,
@@ -51,7 +81,7 @@ impl PairingGroup for Bn256Point {
   type GT = Gt;
 
   fn pairing(p: &Self, q: &Self::G2) -> Self::GT {
-    pairing(&p.affine(), &q.affine())
+    <Bn256 as H2CEngine>::pairing(&p.affine(), &q.affine())
   }
 }
 
@@ -79,10 +109,6 @@ impl Group for G2 {
 
 impl DlogGroup for G2 {
   type AffineGroupElement = G2Affine;
-
-  fn vartime_multiscalar_mul(scalars: &[Self::Scalar], bases: &[Self::AffineGroupElement]) -> Self {
-    best_multiexp(scalars, bases)
-  }
 
   fn affine(&self) -> Self::AffineGroupElement {
     self.to_affine()

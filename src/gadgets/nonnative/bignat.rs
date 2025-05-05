@@ -1,16 +1,16 @@
 use super::{
-  util::{
-    Bitvector, Num, {f_to_nat, nat_to_f},
-  },
+  util::{f_to_nat, nat_to_f, Bitvector, Num},
   OptionExt,
 };
-use bellpepper_core::{ConstraintSystem, LinearCombination, SynthesisError};
+use crate::frontend::{ConstraintSystem, LinearCombination, SynthesisError};
 use ff::PrimeField;
 use num_bigint::BigInt;
 use num_traits::cast::ToPrimitive;
-use std::borrow::Borrow;
-use std::cmp::{max, min};
-use std::convert::From;
+use std::{
+  borrow::Borrow,
+  cmp::{max, min},
+  convert::From,
+};
 
 /// Compute the natural number represented by an array of limbs.
 /// The limbs are assumed to be based the `limb_width` power of 2.
@@ -57,7 +57,7 @@ pub fn nat_to_limbs<Scalar: PrimeField>(
   }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BigNatParams {
   pub min_bits: usize,
   pub max_word: BigInt,
@@ -79,7 +79,7 @@ impl BigNatParams {
 }
 
 /// A representation of a large natural number (a member of {0, 1, 2, ... })
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct BigNat<Scalar: PrimeField> {
   /// The linear combinations which constrain the value of each limb of the number
   pub limbs: Vec<LinearCombination<Scalar>>,
@@ -493,7 +493,7 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
     })
   }
 
-  /// Compute a `BigNat` contrained to be equal to `self * other % modulus`.
+  /// Compute a `BigNat` constrained to be equal to `self * other % modulus`.
   pub fn mult_mod<CS: ConstraintSystem<Scalar>>(
     &self,
     mut cs: CS,
@@ -564,7 +564,7 @@ impl<Scalar: PrimeField> BigNat<Scalar> {
     Ok((quotient, remainder))
   }
 
-  /// Compute a `BigNat` contrained to be equal to `self * other % modulus`.
+  /// Compute a `BigNat` constrained to be equal to `self * other % modulus`.
   pub fn red_mod<CS: ConstraintSystem<Scalar>>(
     &self,
     mut cs: CS,
@@ -782,8 +782,10 @@ impl<Scalar: PrimeField> Polynomial<Scalar> {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use bellpepper_core::{test_cs::TestConstraintSystem, Circuit};
-  use pasta_curves::pallas::Scalar;
+  use crate::{
+    frontend::{test_cs::TestConstraintSystem, Circuit},
+    provider::pasta::pallas::Scalar,
+  };
   use proptest::prelude::*;
 
   pub struct PolynomialMultiplier<Scalar: PrimeField> {

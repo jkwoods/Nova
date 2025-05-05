@@ -1,11 +1,9 @@
+use crate::constants::NUM_HASH_BITS;
 use bincode::Options;
 use ff::PrimeField;
 use serde::Serialize;
 use sha3::{Digest, Sha3_256};
-use std::io;
-use std::marker::PhantomData;
-
-use crate::constants::NUM_HASH_BITS;
+use std::{io, marker::PhantomData};
 
 /// Trait for components with potentially discrete digests to be included in their container's digest.
 pub trait Digestible {

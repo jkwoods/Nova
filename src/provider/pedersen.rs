@@ -1,10 +1,14 @@
 //! This module provides an implementation of a commitment engine
 use crate::{
   errors::NovaError,
-  provider::traits::DlogGroup,
+  gadgets::utils::to_bignat_repr,
+  provider::{
+    ptau::{read_points, write_points, PtauFileError},
+    traits::{DlogGroup, DlogGroupExt},
+  },
   traits::{
-    commitment::{AffineTrait, CommitmentEngineTrait, CommitmentTrait, GetGeneratorsTrait, Len},
-    AbsorbInROTrait, Engine, ROTrait, TranscriptReprTrait,
+    commitment::{CommitmentEngineTrait, CommitmentTrait, Len},
+    AbsorbInRO2Trait, AbsorbInROTrait, Engine, ROTrait, TranscriptReprTrait,
   },
 };
 use core::{
@@ -13,8 +17,12 @@ use core::{
   ops::{Add, Mul, MulAssign},
 };
 use ff::Field;
+use num_integer::Integer;
+use num_traits::ToPrimitive;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+
+const KEY_FILE_HEAD: [u8; 12] = *b"PEDERSEN_KEY";
 
 /// A type that holds commitment generators
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -23,7 +31,7 @@ where
   E::GE: DlogGroup,
 {
   ck: Vec<<E::GE as DlogGroup>::AffineGroupElement>,
-  h: Option<<E::GE as DlogGroup>::AffineGroupElement>,
+  h: <E::GE as DlogGroup>::AffineGroupElement,
 }
 
 impl<E: Engine> Len for CommitmentKey<E>
@@ -32,26 +40,6 @@ where
 {
   fn length(&self) -> usize {
     self.ck.len()
-  }
-}
-
-impl<E: Engine> GetGeneratorsTrait<E> for CommitmentKey<E>
-where
-  E::GE: DlogGroup,
-{
-  fn from_gens(
-    ck: Vec<<E::GE as DlogGroup>::AffineGroupElement>,
-    h: Option<<E::GE as DlogGroup>::AffineGroupElement>,
-  ) -> Self {
-    Self { ck, h }
-  }
-
-  fn get_ck(&self) -> &Vec<<E::GE as DlogGroup>::AffineGroupElement> {
-    &self.ck
-  }
-
-  fn get_h(&self) -> &<E::GE as DlogGroup>::AffineGroupElement {
-    self.h.as_ref().unwrap()
   }
 }
 
@@ -132,6 +120,28 @@ where
   }
 }
 
+impl<E: Engine> AbsorbInRO2Trait<E> for Commitment<E>
+where
+  E::GE: DlogGroup,
+{
+  fn absorb_in_ro2(&self, ro: &mut E::RO2) {
+    let (x, y, is_infinity) = self.comm.to_coordinates();
+
+    // we have to absorb x and y in big num format
+    let limbs_x = to_bignat_repr(&x);
+    let limbs_y = to_bignat_repr(&y);
+
+    for limb in limbs_x.iter().chain(limbs_y.iter()) {
+      ro.absorb(*limb);
+    }
+    ro.absorb(if is_infinity {
+      E::Scalar::ONE
+    } else {
+      E::Scalar::ZERO
+    });
+  }
+}
+
 impl<E: Engine> MulAssign<E::Scalar> for Commitment<E>
 where
   E::GE: DlogGroup,
@@ -143,7 +153,7 @@ where
   }
 }
 
-impl<'a, 'b, E: Engine> Mul<&'b E::Scalar> for &'a Commitment<E>
+impl<'b, E: Engine> Mul<&'b E::Scalar> for &'_ Commitment<E>
 where
   E::GE: DlogGroup,
 {
@@ -187,9 +197,22 @@ pub struct CommitmentEngine<E: Engine> {
   _p: PhantomData<E>,
 }
 
-impl<E: Engine> CommitmentEngineTrait<E> for CommitmentEngine<E>
+impl<E: Engine> CommitmentKey<E>
 where
   E::GE: DlogGroup,
+{
+  pub fn save_to(&self, writer: &mut impl std::io::Write) -> Result<(), PtauFileError> {
+    writer.write_all(&KEY_FILE_HEAD)?;
+    let mut points = Vec::with_capacity(self.ck.len() + 1);
+    points.push(self.h);
+    points.extend(self.ck.iter().cloned());
+    write_points(writer, points)
+  }
+}
+
+impl<E: Engine> CommitmentEngineTrait<E> for CommitmentEngine<E>
+where
+  E::GE: DlogGroupExt,
 {
   type CommitmentKey = CommitmentKey<E>;
   type Commitment = Commitment<E>;
@@ -202,80 +225,33 @@ where
 
     Self::CommitmentKey {
       ck: ck.to_vec(),
-      h: Some(h.clone()),
+      h: *h,
     }
   }
-
-  /*fn setup_with_start(
-    label: &'static [u8],
-    n: usize,
-    gen_start: &[&Self::CommitmentKey],
-  ) -> Self::CommitmentKey {
-    assert!(gen_start.len() >= 1);
-
-    let mut gens = Vec::new();
-    for ck in gen_start {
-      gens.extend(ck.get_ck().clone());
-    }
-    gens.extend(E::GE::from_label(label, n.next_power_of_two() - gens.len()));
-    let h = gen_start[0].get_h();
-
-    Self::CommitmentKey {
-      ck: gens,
-      h: Some(h.clone()),
-    }
-  }*/
 
   fn derand_key(ck: &Self::CommitmentKey) -> Self::DerandKey {
-    assert!(ck.h.is_some());
-    Self::DerandKey {
-      h: ck.h.as_ref().unwrap().clone(),
+    Self::DerandKey { h: ck.h }
+  }
+
+  fn commit(ck: &Self::CommitmentKey, v: &[E::Scalar], r: &E::Scalar) -> Self::Commitment {
+    assert!(ck.ck.len() >= v.len());
+
+    Commitment {
+      comm: E::GE::vartime_multiscalar_mul(v, &ck.ck[..v.len()])
+        + <E::GE as DlogGroup>::group(&ck.h) * r,
     }
   }
 
-  /*fn split_key_at(
+  fn commit_small<T: Integer + Into<u64> + Copy + Sync + ToPrimitive>(
     ck: &Self::CommitmentKey,
-    n: usize,
-  ) -> (Self::CommitmentKey, Self::CommitmentKey) {
-    let mut key1 = CommitmentKey {
-      ck: ck.ck[0..n].to_vec(),
-      h: ck.h.clone(),
-    };
-    let key2 = CommitmentKey {
-      ck: ck.ck[n..].to_vec(),
-      h: ck.h.clone(),
-    };
+    v: &[T],
+    r: &E::Scalar,
+  ) -> Self::Commitment {
+    assert!(ck.ck.len() >= v.len());
 
-    // pad to power of two
-    key1
-      .ck
-      .extend(E::GE::from_label(b"padding", n.next_power_of_two() - n));
-
-    (key1, key2)
-  }*/
-
-  fn commit(ck: &Self::CommitmentKey, v: &[E::Scalar], r: &E::Scalar) -> Self::Commitment {
-    assert!(
-      ck.ck.len() >= v.len(),
-      "{}",
-      format!("ck {:#?}, c {:#?}", ck.ck.len(), v.len())
-    );
-
-    if ck.h.is_some() {
-      let mut scalars: Vec<E::Scalar> = v.to_vec();
-      scalars.push(*r);
-      let mut bases = ck.ck[..v.len()].to_vec();
-      bases.push(ck.h.as_ref().unwrap().clone());
-
-      Commitment {
-        comm: E::GE::vartime_multiscalar_mul(&scalars, &bases),
-      }
-    } else {
-      assert_eq!(*r, E::Scalar::ZERO);
-
-      Commitment {
-        comm: E::GE::vartime_multiscalar_mul(v, &ck.ck[..v.len()]),
-      }
+    Commitment {
+      comm: E::GE::vartime_multiscalar_mul_small(v, &ck.ck[..v.len()])
+        + <E::GE as DlogGroup>::group(&ck.h) * r,
     }
   }
 
@@ -287,6 +263,30 @@ where
     Commitment {
       comm: commit.comm - <E::GE as DlogGroup>::group(&dk.h) * r,
     }
+  }
+
+  fn load_setup(
+    reader: &mut (impl std::io::Read + std::io::Seek),
+    _label: &'static [u8],
+    n: usize,
+  ) -> Result<Self::CommitmentKey, PtauFileError> {
+    let num = n.next_power_of_two();
+    {
+      let mut head = [0u8; 12];
+      reader.read_exact(&mut head)?;
+      if head != KEY_FILE_HEAD {
+        return Err(PtauFileError::InvalidHead);
+      }
+    }
+
+    let points = read_points(reader, num + 1)?;
+
+    let (first, second) = points.split_at(1);
+
+    Ok(Self::CommitmentKey {
+      ck: second.to_vec(),
+      h: first[0],
+    })
   }
 }
 
@@ -317,20 +317,19 @@ where
     Self: Sized;
 }
 
-impl<E> CommitmentKeyExtTrait<E> for CommitmentKey<E>
+impl<E: Engine<CE = CommitmentEngine<E>>> CommitmentKeyExtTrait<E> for CommitmentKey<E>
 where
-  E: Engine<CE = CommitmentEngine<E>>,
-  E::GE: DlogGroup,
+  E::GE: DlogGroupExt,
 {
   fn split_at(&self, n: usize) -> (CommitmentKey<E>, CommitmentKey<E>) {
     (
       CommitmentKey {
         ck: self.ck[0..n].to_vec(),
-        h: self.h.clone(),
+        h: self.h,
       },
       CommitmentKey {
         ck: self.ck[n..].to_vec(),
-        h: self.h.clone(),
+        h: self.h,
       },
     )
   }
@@ -341,10 +340,7 @@ where
       c.extend(other.ck.clone());
       c
     };
-    CommitmentKey {
-      ck,
-      h: self.h.clone(),
-    }
+    CommitmentKey { ck, h: self.h }
   }
 
   // combines the left and right halves of `self` using `w1` and `w2` as the weights
@@ -355,15 +351,12 @@ where
     let ck = (0..self.ck.len() / 2)
       .into_par_iter()
       .map(|i| {
-        let bases = [L.ck[i].clone(), R.ck[i].clone()].to_vec();
+        let bases = [L.ck[i], R.ck[i]].to_vec();
         E::GE::vartime_multiscalar_mul(&w, &bases).affine()
       })
       .collect();
 
-    CommitmentKey {
-      ck,
-      h: self.h.clone(),
-    }
+    CommitmentKey { ck, h: self.h }
   }
 
   /// Scales each element in `self` by `r`
@@ -377,7 +370,7 @@ where
 
     CommitmentKey {
       ck: ck_scaled,
-      h: self.h.clone(),
+      h: self.h,
     }
   }
 
@@ -391,9 +384,40 @@ where
     // cmt is derandomized by the point that this is called
     Ok(CommitmentKey {
       ck,
-      h: None, // this is okay, since this method is used in IPA only,
-               // and we only use non-blinding commits afterwards
-               // bc we don't use ZK IPA
+      h: E::GE::zero().affine(), // this is okay, since this method is used in IPA only,
+                                 // and we only use non-blinding commits afterwards
+                                 // bc we don't use ZK IPA
     })
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  use crate::{provider::GrumpkinEngine, CommitmentKey};
+  use std::{fs::File, io::BufWriter};
+
+  type E = GrumpkinEngine;
+
+  #[test]
+  fn test_key_save_load() {
+    let path = "/tmp/pedersen_test.keys";
+
+    const LABEL: &[u8; 4] = b"test";
+
+    let keys = CommitmentEngine::<E>::setup(LABEL, 100);
+
+    keys
+      .save_to(&mut BufWriter::new(File::create(path).unwrap()))
+      .unwrap();
+
+    let keys_read = CommitmentEngine::load_setup(&mut File::open(path).unwrap(), LABEL, 100);
+
+    assert!(keys_read.is_ok());
+    let keys_read: CommitmentKey<E> = keys_read.unwrap();
+    assert_eq!(keys_read.ck.len(), keys.ck.len());
+    assert_eq!(keys_read.h, keys.h);
+    assert_eq!(keys_read.ck, keys.ck);
   }
 }

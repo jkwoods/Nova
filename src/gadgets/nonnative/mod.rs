@@ -1,7 +1,7 @@
 //! This module implements various gadgets necessary for doing non-native arithmetic
 //! Code in this module is adapted from [bellman-bignat](https://github.com/alex-ozdemir/bellman-bignat), which is licenced under MIT
 
-use bellpepper_core::SynthesisError;
+use crate::frontend::SynthesisError;
 use ff::PrimeField;
 
 trait OptionExt<T> {
@@ -26,7 +26,7 @@ impl<Scalar: PrimeField> BitAccess for Scalar {
 
     let (byte_pos, bit_pos) = (i / 8, i % 8);
     let byte = self.to_repr().as_ref()[byte_pos];
-    let bit = byte >> bit_pos & 1;
+    let bit = (byte >> bit_pos) & 1;
     Some(bit == 1)
   }
 }

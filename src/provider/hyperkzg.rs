@@ -8,20 +8,28 @@
 #![allow(non_snake_case)]
 use crate::{
   errors::NovaError,
-  provider::traits::{DlogGroup, PairingGroup},
+  gadgets::utils::to_bignat_repr,
+  provider::{
+    ptau::PtauFileError,
+    read_ptau,
+    traits::{DlogGroup, DlogGroupExt, PairingGroup},
+    write_ptau,
+  },
   traits::{
     commitment::{CommitmentEngineTrait, CommitmentTrait, Len},
     evaluation::EvaluationEngineTrait,
-    AbsorbInROTrait, Engine, ROTrait, TranscriptEngineTrait, TranscriptReprTrait,
+    AbsorbInRO2Trait, AbsorbInROTrait, Engine, ROTrait, TranscriptEngineTrait, TranscriptReprTrait,
   },
-  zip_with, R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness,
 };
 use core::{
+  iter,
   marker::PhantomData,
   ops::{Add, Mul, MulAssign},
+  slice,
 };
-use ff::Field;
-use itertools::Itertools;
+use ff::{Field, PrimeFieldBits};
+use num_integer::Integer;
+use num_traits::ToPrimitive;
 use rand_core::OsRng;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -41,6 +49,35 @@ where
   ck: Vec<<E::GE as DlogGroup>::AffineGroupElement>,
   h: <E::GE as DlogGroup>::AffineGroupElement,
   tau_H: <<E::GE as PairingGroup>::G2 as DlogGroup>::AffineGroupElement, // needed only for the verifier key
+}
+
+impl<E: Engine> CommitmentKey<E>
+where
+  E::GE: PairingGroup,
+{
+  /// Create a new commitment key
+  pub fn new(
+    ck: Vec<<E::GE as DlogGroup>::AffineGroupElement>,
+    h: <E::GE as DlogGroup>::AffineGroupElement,
+    tau_H: <<E::GE as PairingGroup>::G2 as DlogGroup>::AffineGroupElement,
+  ) -> Self {
+    Self { ck, h, tau_H }
+  }
+
+  /// Returns a reference to the ck field
+  pub fn ck(&self) -> &[<E::GE as DlogGroup>::AffineGroupElement] {
+    &self.ck
+  }
+
+  /// Returns a reference to the h field
+  pub fn h(&self) -> &<E::GE as DlogGroup>::AffineGroupElement {
+    &self.h
+  }
+
+  /// Returns a reference to the tau_H field
+  pub fn tau_H(&self) -> &<<E::GE as PairingGroup>::G2 as DlogGroup>::AffineGroupElement {
+    &self.tau_H
+  }
 }
 
 impl<E: Engine> Len for CommitmentKey<E>
@@ -71,6 +108,23 @@ where
   comm: <E as Engine>::GE,
 }
 
+<<<<<<< HEAD
+=======
+impl<E: Engine> Commitment<E>
+where
+  E::GE: PairingGroup,
+{
+  /// Creates a new commitment from the underlying group element
+  pub fn new(comm: <E as Engine>::GE) -> Self {
+    Commitment { comm }
+  }
+  /// Returns the commitment as a group element
+  pub fn into_inner(self) -> <E as Engine>::GE {
+    self.comm
+  }
+}
+
+>>>>>>> upstream/main
 impl<E: Engine> CommitmentTrait<E> for Commitment<E>
 where
   E::GE: PairingGroup,
@@ -80,6 +134,27 @@ where
   }
 }
 
+<<<<<<< HEAD
+=======
+impl<E: Engine> CommitmentKey<E>
+where
+  E::GE: PairingGroup,
+{
+  /// Save keys
+  pub fn save_to(
+    &self,
+    mut writer: &mut (impl std::io::Write + std::io::Seek),
+  ) -> Result<(), PtauFileError> {
+    let g1_points = self.ck.clone();
+
+    let g2_points = vec![self.tau_H, self.tau_H];
+    let power = g1_points.len().next_power_of_two().trailing_zeros() + 1;
+
+    write_ptau(&mut writer, g1_points, g2_points, power)
+  }
+}
+
+>>>>>>> upstream/main
 impl<E: Engine> Default for Commitment<E>
 where
   E::GE: PairingGroup,
@@ -123,6 +198,31 @@ where
   }
 }
 
+<<<<<<< HEAD
+=======
+impl<E: Engine> AbsorbInRO2Trait<E> for Commitment<E>
+where
+  E::GE: PairingGroup,
+{
+  fn absorb_in_ro2(&self, ro: &mut E::RO2) {
+    let (x, y, is_infinity) = self.comm.to_coordinates();
+
+    // we have to absorb x and y in big num format
+    let limbs_x = to_bignat_repr(&x);
+    let limbs_y = to_bignat_repr(&y);
+
+    for limb in limbs_x.iter().chain(limbs_y.iter()) {
+      ro.absorb(*limb);
+    }
+    ro.absorb(if is_infinity {
+      E::Scalar::ONE
+    } else {
+      E::Scalar::ZERO
+    });
+  }
+}
+
+>>>>>>> upstream/main
 impl<E: Engine> MulAssign<E::Scalar> for Commitment<E>
 where
   E::GE: PairingGroup,
@@ -133,7 +233,11 @@ where
   }
 }
 
+<<<<<<< HEAD
 impl<'a, 'b, E: Engine> Mul<&'b E::Scalar> for &'a Commitment<E>
+=======
+impl<'b, E: Engine> Mul<&'b E::Scalar> for &'_ Commitment<E>
+>>>>>>> upstream/main
 where
   E::GE: PairingGroup,
 {
@@ -178,6 +282,7 @@ pub struct CommitmentEngine<E: Engine> {
   _p: PhantomData<E>,
 }
 
+<<<<<<< HEAD
 impl<E: Engine> CommitmentEngineTrait<E> for CommitmentEngine<E>
 where
   E::GE: PairingGroup,
@@ -190,20 +295,63 @@ where
     // NOTE: this is for testing purposes and should not be used in production
     // TODO: we need to decide how to generate load/store parameters
     let tau = E::Scalar::random(OsRng);
+=======
+impl<E: Engine> CommitmentKey<E>
+where
+  E::GE: PairingGroup,
+{
+  /// NOTE: this is for testing purposes and should not be used in production
+  /// This can be used instead of `setup` to generate a reproducible commitment key
+  pub fn setup_from_rng(label: &'static [u8], n: usize, rng: impl rand_core::RngCore) -> Self {
+    const T1: usize = 1 << 16;
+    const T2: usize = 100_000;
+
+>>>>>>> upstream/main
     let num_gens = n.next_power_of_two();
 
-    // Compute powers of tau in E::Scalar, then scalar muls in parallel
-    let mut powers_of_tau: Vec<E::Scalar> = Vec::with_capacity(num_gens);
-    powers_of_tau.insert(0, E::Scalar::ONE);
-    for i in 1..num_gens {
-      powers_of_tau.insert(i, powers_of_tau[i - 1] * tau);
+    let tau = E::Scalar::random(rng);
+
+    let powers_of_tau = if num_gens < T1 {
+      Self::compute_powers_serial(tau, num_gens)
+    } else {
+      Self::compute_powers_par(tau, num_gens)
+    };
+
+    if num_gens < T2 {
+      Self::setup_from_tau_direct(label, &powers_of_tau, tau)
+    } else {
+      Self::setup_from_tau_fixed_base_exp(label, &powers_of_tau)
     }
+  }
+
+  fn setup_from_tau_fixed_base_exp(label: &'static [u8], powers_of_tau: &[E::Scalar]) -> Self {
+    let tau = powers_of_tau[1];
+
+    let gen = <E::GE as DlogGroup>::gen();
+
+    let ck = fixed_base_exp_comb_batch::<4, 16, 64, 2, 32, _>(gen, powers_of_tau);
+    let ck = ck.par_iter().map(|p| p.affine()).collect();
+
+    let h = *E::GE::from_label(label, 1).first().unwrap();
+
+    let tau_H = (<<E::GE as PairingGroup>::G2 as DlogGroup>::gen() * tau).affine();
+
+    Self { ck, h, tau_H }
+  }
+
+  fn setup_from_tau_direct(
+    label: &'static [u8],
+    powers_of_tau: &[E::Scalar],
+    tau: E::Scalar,
+  ) -> Self {
+    let num_gens = powers_of_tau.len();
 
     let ck: Vec<G1Affine<E>> = (0..num_gens)
       .into_par_iter()
       .map(|i| (<E::GE as DlogGroup>::gen() * powers_of_tau[i]).affine())
       .collect();
 
+<<<<<<< HEAD
     let h = E::GE::from_label(label, 1).first().unwrap().clone();
 
     let tau_H = (<<E::GE as PairingGroup>::G2 as DlogGroup>::gen() * tau).affine();
@@ -218,6 +366,184 @@ where
   }
 
   fn commit(ck: &Self::CommitmentKey, v: &[E::Scalar], r: &E::Scalar) -> Self::Commitment {
+=======
+    let h = *E::GE::from_label(label, 1).first().unwrap();
+
+    let tau_H = (<<E::GE as PairingGroup>::G2 as DlogGroup>::gen() * tau).affine();
+
+    Self { ck, h, tau_H }
+  }
+
+  fn compute_powers_serial(tau: E::Scalar, n: usize) -> Vec<E::Scalar> {
+    let mut powers_of_tau = Vec::with_capacity(n);
+    powers_of_tau.insert(0, E::Scalar::ONE);
+    for i in 1..n {
+      powers_of_tau.insert(i, powers_of_tau[i - 1] * tau);
+    }
+    powers_of_tau
+  }
+
+  fn compute_powers_par(tau: E::Scalar, n: usize) -> Vec<E::Scalar> {
+    let num_threads = rayon::current_num_threads();
+    (0..n)
+      .collect::<Vec<_>>()
+      .par_chunks(std::cmp::max(n / num_threads, 1))
+      .into_par_iter()
+      .map(|sub_list| {
+        let mut res = Vec::with_capacity(sub_list.len());
+        res.push(tau.pow([sub_list[0] as u64]));
+        for i in 1..sub_list.len() {
+          res.push(res[i - 1] * tau);
+        }
+        res
+      })
+      .flatten()
+      .collect::<Vec<_>>()
+  }
+}
+
+// * Implementation of https://www.weimerskirch.org/files/Weimerskirch_FixedBase.pdf
+fn fixed_base_exp_comb_batch<
+  const H: usize,
+  const POW_2_H: usize,
+  const A: usize,
+  const B: usize,
+  const V: usize,
+  G: DlogGroup,
+>(
+  gen: G,
+  scalars: &[G::Scalar],
+) -> Vec<G> {
+  assert_eq!(1 << H, POW_2_H);
+  assert_eq!(A, V * B);
+  assert!(A <= 64);
+
+  let zero = G::zero();
+  let one = gen;
+
+  let gi = {
+    let mut res = [one; H];
+    for i in 1..H {
+      let prod = (0..A).fold(res[i - 1], |acc, _| acc + acc);
+      res[i] = prod;
+    }
+    res
+  };
+
+  let mut precompute_res = (1..POW_2_H)
+    .into_par_iter()
+    .map(|i| {
+      let mut res = [zero; V];
+
+      // * G[0][i]
+      let mut g_0_i = zero;
+      for (j, item) in gi.iter().enumerate().take(H) {
+        if (1 << j) & i > 0 {
+          g_0_i += item;
+        }
+      }
+
+      res[0] = g_0_i;
+
+      // * G[j][i]
+      for j in 1..V {
+        res[j] = (0..B).fold(res[j - 1], |acc, _| acc + acc);
+      }
+
+      res
+    })
+    .collect::<Vec<_>>();
+
+  precompute_res.insert(0, [zero; V]);
+
+  let precomputed_g: [_; POW_2_H] = std::array::from_fn(|j| precompute_res[j]);
+
+  let zero = G::zero();
+
+  scalars
+    .par_iter()
+    .map(|e| {
+      let mut a = zero;
+      let mut bits = e.to_le_bits().into_iter().collect::<Vec<_>>();
+
+      while bits.len() % A != 0 {
+        bits.push(false);
+      }
+
+      for k in (0..B).rev() {
+        a += a;
+        for j in (0..V).rev() {
+          let i_j_k = (0..H)
+            .map(|h| {
+              let b = bits[h * A + j * B + k];
+              (1 << h) * b as usize
+            })
+            .sum::<usize>();
+
+          if i_j_k > 0 {
+            a += precomputed_g[i_j_k][j];
+          }
+        }
+      }
+
+      a
+    })
+    .collect::<Vec<_>>()
+}
+
+impl<E: Engine> CommitmentEngineTrait<E> for CommitmentEngine<E>
+where
+  E::GE: PairingGroup,
+{
+  type Commitment = Commitment<E>;
+  type CommitmentKey = CommitmentKey<E>;
+  type DerandKey = DerandKey<E>;
+
+  fn setup(label: &'static [u8], n: usize) -> Self::CommitmentKey {
+    // NOTE: this is for testing purposes and should not be used in production
+    Self::CommitmentKey::setup_from_rng(label, n, OsRng)
+  }
+
+  fn derand_key(ck: &Self::CommitmentKey) -> Self::DerandKey {
+    Self::DerandKey { h: ck.h }
+  }
+
+  fn commit(ck: &Self::CommitmentKey, v: &[E::Scalar], r: &E::Scalar) -> Self::Commitment {
+    assert!(ck.ck.len() >= v.len());
+
+    Commitment {
+      comm: E::GE::vartime_multiscalar_mul(v, &ck.ck[..v.len()])
+        + <E::GE as DlogGroup>::group(&ck.h) * r,
+    }
+  }
+
+  fn batch_commit(
+    ck: &Self::CommitmentKey,
+    v: &[Vec<<E as Engine>::Scalar>],
+    r: &[<E as Engine>::Scalar],
+  ) -> Vec<Self::Commitment> {
+    assert!(v.len() == r.len());
+
+    let max = v.iter().map(|v| v.len()).max().unwrap_or(0);
+    assert!(ck.ck.len() >= max);
+
+    let h = <E::GE as DlogGroup>::group(&ck.h);
+
+    E::GE::batch_vartime_multiscalar_mul(v, &ck.ck[..max])
+      .iter()
+      .zip(r.iter())
+      .map(|(commit, r_i)| Commitment {
+        comm: *commit + (h * r_i),
+      })
+      .collect()
+  }
+
+  fn commit_small<T: Integer + Into<u64> + Copy + Sync + ToPrimitive>(
+    ck: &Self::CommitmentKey,
+    v: &[T],
+    r: &E::Scalar,
+  ) -> Self::Commitment {
+>>>>>>> upstream/main
     assert!(ck.ck.len() >= v.len());
 
     let mut scalars: Vec<E::Scalar> = v.to_vec();
@@ -226,6 +552,7 @@ where
     bases.push(ck.h.clone());
 
     Commitment {
+<<<<<<< HEAD
       comm: E::GE::vartime_multiscalar_mul(&scalars, &bases),
     }
   }
@@ -237,7 +564,60 @@ where
   ) -> Self::Commitment {
     Commitment {
       comm: commit.comm - <E::GE as DlogGroup>::group(&dk.h) * r,
+=======
+      comm: E::GE::vartime_multiscalar_mul_small(v, &ck.ck[..v.len()])
+        + <E::GE as DlogGroup>::group(&ck.h) * r,
+>>>>>>> upstream/main
     }
+  }
+
+  fn batch_commit_small<T: Integer + Into<u64> + Copy + Sync + ToPrimitive>(
+    ck: &Self::CommitmentKey,
+    v: &[Vec<T>],
+    r: &[E::Scalar],
+  ) -> Vec<Self::Commitment> {
+    assert!(v.len() == r.len());
+
+    let max = v.iter().map(|v| v.len()).max().unwrap_or(0);
+    assert!(ck.ck.len() >= max);
+
+    let h = <E::GE as DlogGroup>::group(&ck.h);
+
+    E::GE::batch_vartime_multiscalar_mul_small(v, &ck.ck[..max])
+      .iter()
+      .zip(r.iter())
+      .map(|(commit, r_i)| Commitment {
+        comm: *commit + (h * r_i),
+      })
+      .collect()
+  }
+
+  fn derandomize(
+    dk: &Self::DerandKey,
+    commit: &Self::Commitment,
+    r: &E::Scalar,
+  ) -> Self::Commitment {
+    Commitment {
+      comm: commit.comm - <E::GE as DlogGroup>::group(&dk.h) * r,
+    }
+  }
+
+  fn load_setup(
+    reader: &mut (impl std::io::Read + std::io::Seek),
+    label: &'static [u8],
+    n: usize,
+  ) -> Result<Self::CommitmentKey, PtauFileError> {
+    let num = n.next_power_of_two();
+
+    let (g1_points, g2_points) = read_ptau(reader, num, 2)?;
+
+    let ck = g1_points.to_vec();
+
+    let tau_H = *g2_points.last().unwrap();
+
+    let h = *E::GE::from_label(label, 1).first().unwrap();
+
+    Ok(CommitmentKey { ck, h, tau_H })
   }
 }
 
@@ -268,8 +648,30 @@ where
   E::GE: PairingGroup,
 {
   com: Vec<G1Affine<E>>,
-  w: Vec<G1Affine<E>>,
-  v: Vec<Vec<E::Scalar>>,
+  w: [G1Affine<E>; 3],
+  v: Vec<[E::Scalar; 3]>,
+}
+
+impl<E: Engine> EvaluationArgument<E>
+where
+  E::GE: PairingGroup,
+{
+  /// Create a new evaluation argument
+  pub fn new(com: Vec<G1Affine<E>>, w: [G1Affine<E>; 3], v: Vec<[E::Scalar; 3]>) -> Self {
+    Self { com, w, v }
+  }
+  /// The KZG commitments to intermediate polynomials
+  pub fn com(&self) -> &[G1Affine<E>] {
+    &self.com
+  }
+  /// The KZG witnesses for batch openings
+  pub fn w(&self) -> &[G1Affine<E>] {
+    &self.w
+  }
+  /// The evaluations of the polynomials at challenge points
+  pub fn v(&self) -> &[[E::Scalar; 3]] {
+    &self.v
+  }
 }
 
 /// Provides an implementation of a polynomial evaluation engine using KZG
@@ -292,7 +694,7 @@ where
 
   // Compute challenge q = Hash(vk, C0, ..., C_{k-1}, u0, ...., u_{t-1},
   // (f_i(u_j))_{i=0..k-1,j=0..t-1})
-  fn get_batch_challenge(v: &[Vec<E::Scalar>], transcript: &mut <E as Engine>::TE) -> E::Scalar {
+  fn get_batch_challenge(v: &[[E::Scalar; 3]], transcript: &mut <E as Engine>::TE) -> E::Scalar {
     transcript.absorb(
       b"v",
       &v.iter()
@@ -340,7 +742,7 @@ where
     let vk = VerifierKey {
       G: E::GE::gen().affine(),
       H: <<E::GE as PairingGroup>::G2 as DlogGroup>::gen().affine(),
-      tau_H: ck.tau_H.clone(),
+      tau_H: ck.tau_H,
     };
 
     (pk, vk)
@@ -391,9 +793,9 @@ where
     };
 
     let kzg_open_batch = |f: &[Vec<E::Scalar>],
-                          u: &[E::Scalar],
+                          u: &[E::Scalar; 3],
                           transcript: &mut <E as Engine>::TE|
-     -> (Vec<G1Affine<E>>, Vec<Vec<E::Scalar>>) {
+     -> (Vec<G1Affine<E>>, Vec<[E::Scalar; 3]>) {
       let poly_eval = |f: &[E::Scalar], u: E::Scalar| -> E::Scalar {
         let mut v = f[0];
         let mut u_power = E::Scalar::ONE;
@@ -429,16 +831,16 @@ where
       ///////// END kzg_open_batch closure helpers
 
       let k = f.len();
-      let t = u.len();
+      // Note: u.len() is always 3.
 
       // The verifier needs f_i(u_j), so we compute them here
       // (V will compute B(u_j) itself)
-      let mut v = vec![vec!(E::Scalar::ZERO; k); t];
-      v.par_iter_mut().enumerate().for_each(|(i, v_i)| {
-        // for each point u
-        v_i.par_iter_mut().zip_eq(f).for_each(|(v_ij, f)| {
-          // for each poly f
-          // for each poly f (except the last one - since it is constant)
+      let mut v = vec![[E::Scalar::ZERO; 3]; k];
+      v.par_iter_mut().zip_eq(f).for_each(|(v_j, f)| {
+        // for each poly f
+        // for each poly f (except the last one - since it is constant)
+        v_j.par_iter_mut().enumerate().for_each(|(i, v_ij)| {
+          // for each point u
           *v_ij = poly_eval(f, u[i]);
         });
       });
@@ -484,21 +886,32 @@ where
 
     // We do not need to commit to the first polynomial as it is already committed.
     // Compute commitments in parallel
+<<<<<<< HEAD
     let com: Vec<G1Affine<E>> = (1..polys.len())
       .into_par_iter()
       .map(|i| E::CE::commit(ck, &polys[i], &E::Scalar::ZERO).comm.affine())
+=======
+    let r = vec![E::Scalar::ZERO; ell - 1];
+    let com: Vec<G1Affine<E>> = E::CE::batch_commit(ck, &polys[1..], r.as_slice())
+      .iter()
+      .map(|i| i.comm.affine())
+>>>>>>> upstream/main
       .collect();
 
     // Phase 2
     // We do not need to add x to the transcript, because in our context x was obtained from the transcript.
     // We also do not need to absorb `C` and `eval` as they are already absorbed by the transcript by the caller
     let r = Self::compute_challenge(&com, transcript);
-    let u = vec![r, -r, r * r];
+    let u = [r, -r, r * r];
 
     // Phase 3 -- create response
     let (w, v) = kzg_open_batch(&polys, &u, transcript);
 
-    Ok(EvaluationArgument { com, w, v })
+    Ok(EvaluationArgument {
+      com,
+      w: w.try_into().expect("w should have length 3"),
+      v,
+    })
   }
 
   /// A method to verify purported evaluations of a batch of polynomials
@@ -506,142 +919,125 @@ where
     vk: &Self::VerifierKey,
     transcript: &mut <E as Engine>::TE,
     C: &Commitment<E>,
-    point: &[E::Scalar],
-    P_of_x: &E::Scalar,
+    x: &[E::Scalar],
+    y: &E::Scalar,
     pi: &Self::EvaluationArgument,
   ) -> Result<(), NovaError> {
-    let x = point.to_vec();
-    let y = P_of_x;
-
-    // vk is hashed in transcript already, so we do not add it here
-    let kzg_verify_batch = |vk: &VerifierKey<E>,
-                            C: &Vec<G1Affine<E>>,
-                            W: &Vec<G1Affine<E>>,
-                            u: &Vec<E::Scalar>,
-                            v: &Vec<Vec<E::Scalar>>,
-                            transcript: &mut <E as Engine>::TE|
-     -> bool {
-      let k = C.len();
-      let t = u.len();
-
-      let q = Self::get_batch_challenge(v, transcript);
-      let q_powers = Self::batch_challenge_powers(q, k); // 1, q, q^2, ..., q^(k-1)
-
-      let d_0 = Self::verifier_second_challenge(W, transcript);
-      let d_1 = d_0 * d_0;
-
-      // Shorthand to convert from preprocessed G1 elements to non-preprocessed
-      let from_ppG1 = |P: &G1Affine<E>| <E::GE as DlogGroup>::group(P);
-      // Shorthand to convert from preprocessed G2 elements to non-preprocessed
-      let from_ppG2 = |P: &G2Affine<E>| <<E::GE as PairingGroup>::G2 as DlogGroup>::group(P);
-
-      assert_eq!(t, 3);
-      assert_eq!(W.len(), 3);
-      // We write a special case for t=3, since this what is required for
-      // hyperkzg. Following the paper directly, we must compute:
-      // let L0 = C_B - vk.G * B_u[0] + W[0] * u[0];
-      // let L1 = C_B - vk.G * B_u[1] + W[1] * u[1];
-      // let L2 = C_B - vk.G * B_u[2] + W[2] * u[2];
-      // let R0 = -W[0];
-      // let R1 = -W[1];
-      // let R2 = -W[2];
-      // let L = L0 + L1*d_0 + L2*d_1;
-      // let R = R0 + R1*d_0 + R2*d_1;
-      //
-      // We group terms to reduce the number of scalar mults (to seven):
-      // In Rust, we could use MSMs for these, and speed up verification.
-      //
-      // Note, that while computing L, the intermediate computation of C_B together with computing
-      // L0, L1, L2 can be replaced by single MSM of C with the powers of q multiplied by (1 + d_0 + d_1)
-      // with additionally concatenated inputs for scalars/bases.
-
-      let q_power_multiplier = E::Scalar::ONE + d_0 + d_1;
-
-      let q_powers_multiplied: Vec<E::Scalar> = q_powers
-        .par_iter()
-        .map(|q_power| *q_power * q_power_multiplier)
-        .collect();
-
-      // Compute the batched openings
-      // compute B(u_i) = v[i][0] + q*v[i][1] + ... + q^(t-1) * v[i][t-1]
-      let B_u = v
-        .into_par_iter()
-        .map(|v_i| zip_with!(iter, (q_powers, v_i), |a, b| *a * *b).sum())
-        .collect::<Vec<E::Scalar>>();
-
-      let L = E::GE::vartime_multiscalar_mul(
-        &[
-          &q_powers_multiplied[..k],
-          &[
-            u[0],
-            (u[1] * d_0),
-            (u[2] * d_1),
-            -(B_u[0] + d_0 * B_u[1] + d_1 * B_u[2]),
-          ],
-        ]
-        .concat(),
-        &[
-          &C[..k],
-          &[W[0].clone(), W[1].clone(), W[2].clone(), vk.G.clone()],
-        ]
-        .concat(),
-      );
-
-      let R0 = from_ppG1(&W[0]);
-      let R1 = from_ppG1(&W[1]);
-      let R2 = from_ppG1(&W[2]);
-      let R = R0 + R1 * d_0 + R2 * d_1;
-
-      // Check that e(L, vk.H) == e(R, vk.tau_H)
-      (<E::GE as PairingGroup>::pairing(&L, &from_ppG2(&vk.H)))
-        == (<E::GE as PairingGroup>::pairing(&R, &from_ppG2(&vk.tau_H)))
-    };
-    ////// END verify() closure helpers
-
     let ell = x.len();
-
-    let mut com = pi.com.clone();
 
     // we do not need to add x to the transcript, because in our context x was
     // obtained from the transcript
-    let r = Self::compute_challenge(&com, transcript);
+    let r = Self::compute_challenge(&pi.com, transcript);
 
     if r == E::Scalar::ZERO || C.comm == E::GE::zero() {
-      return Err(NovaError::ProofVerifyError);
+      return Err(NovaError::ProofVerifyError {
+        reason: "r is zero or commitment is zero".to_string(),
+      });
     }
-    com.insert(0, C.comm.affine()); // set com_0 = C, shifts other commitments to the right
 
-    let u = vec![r, -r, r * r];
+    let u = [r, -r, r * r];
 
     // Setup vectors (Y, ypos, yneg) from pi.v
-    let v = &pi.v;
-    if v.len() != 3 {
-      return Err(NovaError::ProofVerifyError);
+    if pi.v.len() != ell || pi.com.len() != ell - 1 {
+      return Err(NovaError::ProofVerifyError {
+        reason: "Invalid lengths of pi.v".to_string(),
+      });
     }
-    if v[0].len() != ell || v[1].len() != ell || v[2].len() != ell {
-      return Err(NovaError::ProofVerifyError);
-    }
-    let ypos = &v[0];
-    let yneg = &v[1];
-    let mut Y = v[2].to_vec();
-    Y.push(*y);
 
     // Check consistency of (Y, ypos, yneg)
-    let two = E::Scalar::from(2u64);
     for i in 0..ell {
-      if two * r * Y[i + 1]
-        != r * (E::Scalar::ONE - x[ell - i - 1]) * (ypos[i] + yneg[i])
-          + x[ell - i - 1] * (ypos[i] - yneg[i])
+      let ypos = pi.v[i][0];
+      let yneg = pi.v[i][1];
+      let Y = pi.v.get(i + 1).map_or(*y, |v| v[2]);
+      if r.double() * Y
+        != r * (E::Scalar::ONE - x[ell - i - 1]) * (ypos + yneg) + x[ell - i - 1] * (ypos - yneg)
       {
-        return Err(NovaError::ProofVerifyError);
+        return Err(NovaError::ProofVerifyError {
+          reason: "Inconsistent (Y, ypos, yneg)".to_string(),
+        });
       }
       // Note that we don't make any checks about Y[0] here, but our batching
       // check below requires it
     }
 
     // Check commitments to (Y, ypos, yneg) are valid
-    if !kzg_verify_batch(vk, &com, &pi.w, &u, &pi.v, transcript) {
-      return Err(NovaError::ProofVerifyError);
+
+    // vk is hashed in transcript already, so we do not add it here
+
+    let q = Self::get_batch_challenge(&pi.v, transcript);
+
+    let d_0 = Self::verifier_second_challenge(&pi.w, transcript);
+    let d_1 = d_0.square();
+
+    // We write a special case for t=3, since this what is required for
+    // hyperkzg. Following the paper directly, we must compute:
+    // let L0 = C_B - vk.G * B_u[0] + W[0] * u[0];
+    // let L1 = C_B - vk.G * B_u[1] + W[1] * u[1];
+    // let L2 = C_B - vk.G * B_u[2] + W[2] * u[2];
+    // let R0 = -W[0];
+    // let R1 = -W[1];
+    // let R2 = -W[2];
+    // let L = L0 + L1*d_0 + L2*d_1;
+    // let R = R0 + R1*d_0 + R2*d_1;
+    //
+    // We group terms to reduce the number of scalar mults (to seven):
+    // In Rust, we could use MSMs for these, and speed up verification.
+    //
+    // Note, that while computing L, the intermediate computation of C_B together with computing
+    // L0, L1, L2 can be replaced by single MSM of C with the powers of q multiplied by (1 + d_0 + d_1)
+    // with additionally concatenated inputs for scalars/bases.
+
+    let q_power_multiplier = E::Scalar::ONE + d_0 + d_1;
+
+    let q_powers_multiplied: Vec<E::Scalar> =
+      iter::successors(Some(q_power_multiplier), |qi| Some(*qi * q))
+        .take(ell)
+        .collect();
+
+    // Compute the batched openings
+    // compute B(u_i) = v[i][0] + q*v[i][1] + ... + q^(t-1) * v[i][t-1]
+    let B_u = (0..3)
+      .into_par_iter()
+      .map(|i| {
+        pi.v
+          .iter()
+          .rev()
+          .fold(E::Scalar::ZERO, |acc, v_j| acc * q + v_j[i])
+      })
+      .collect::<Vec<E::Scalar>>();
+
+    let L = E::GE::vartime_multiscalar_mul(
+      &[
+        &q_powers_multiplied[..],
+        &[
+          u[0],
+          (u[1] * d_0),
+          (u[2] * d_1),
+          -(B_u[0] + d_0 * B_u[1] + d_1 * B_u[2]),
+        ],
+      ]
+      .concat(),
+      &[
+        &[C.comm.affine()][..],
+        &pi.com,
+        &pi.w,
+        slice::from_ref(&vk.G),
+      ]
+      .concat(),
+    );
+
+    let R0 = E::GE::group(&pi.w[0]);
+    let R1 = E::GE::group(&pi.w[1]);
+    let R2 = E::GE::group(&pi.w[2]);
+    let R = R0 + R1 * d_0 + R2 * d_1;
+
+    // Check that e(L, vk.H) == e(R, vk.tau_H)
+    if (E::GE::pairing(&L, &DlogGroup::group(&vk.H)))
+      != (E::GE::pairing(&R, &DlogGroup::group(&vk.tau_H)))
+    {
+      return Err(NovaError::ProofVerifyError {
+        reason: "Pairing check failed".to_string(),
+      });
     }
 
     Ok(())
@@ -650,9 +1046,14 @@ where
 
 #[cfg(test)]
 mod tests {
+  use std::{
+    fs::OpenOptions,
+    io::{BufReader, BufWriter},
+  };
+
   use super::*;
   use crate::{
-    provider::{keccak::Keccak256Transcript, Bn256EngineKZG},
+    provider::{hyperkzg, keccak::Keccak256Transcript, Bn256EngineKZG},
     spartan::polys::multilinear::MultilinearPolynomial,
   };
   use bincode::Options;
@@ -753,11 +1154,11 @@ mod tests {
       .with_fixint_encoding()
       .serialize(&proof)
       .unwrap();
-    assert_eq!(proof_bytes.len(), 368);
+    assert_eq!(proof_bytes.len(), 336);
 
     // Change the proof and expect verification to fail
     let mut bad_proof = proof.clone();
-    let v1 = bad_proof.v[1].clone();
+    let v1 = bad_proof.v[1];
     bad_proof.v[0].clone_from(&v1);
     let mut verifier_transcript2 = Keccak256Transcript::new(b"TestEval");
     assert!(EvaluationEngine::verify(
@@ -801,12 +1202,132 @@ mod tests {
 
       // Change the proof and expect verification to fail
       let mut bad_proof = proof.clone();
-      let v1 = bad_proof.v[1].clone();
+      let v1 = bad_proof.v[1];
       bad_proof.v[0].clone_from(&v1);
       let mut verifier_tr2 = Keccak256Transcript::new(b"TestEval");
       assert!(
         EvaluationEngine::verify(&vk, &mut verifier_tr2, &C, &point, &eval, &bad_proof).is_err()
       );
+    }
+  }
+
+  #[ignore = "only available with external ptau files"]
+  #[test]
+  fn test_hyperkzg_large_from_file() {
+    // test the hyperkzg prover and verifier with random instances (derived from a seed)
+    for ell in [4, 5, 6] {
+      let mut rng = rand::rngs::StdRng::seed_from_u64(ell as u64);
+
+      let n = 1 << ell; // n = 2^ell
+
+      let poly = (0..n).map(|_| Fr::random(&mut rng)).collect::<Vec<_>>();
+      let point = (0..ell).map(|_| Fr::random(&mut rng)).collect::<Vec<_>>();
+      let eval = MultilinearPolynomial::evaluate_with(&poly, &point);
+
+      let mut reader = BufReader::new(std::fs::File::open("/tmp/ppot_0080_13.ptau").unwrap());
+
+      let ck: CommitmentKey<E> = CommitmentEngine::load_setup(&mut reader, b"test", n).unwrap();
+      let (pk, vk) = EvaluationEngine::setup(&ck);
+
+      // make a commitment
+      let C = CommitmentEngine::commit(&ck, &poly, &<E as Engine>::Scalar::ZERO);
+
+      // prove an evaluation
+      let mut prover_transcript = Keccak256Transcript::new(b"TestEval");
+      let proof: EvaluationArgument<E> =
+        EvaluationEngine::prove(&ck, &pk, &mut prover_transcript, &C, &poly, &point, &eval)
+          .unwrap();
+
+      // verify the evaluation
+      let mut verifier_tr = Keccak256Transcript::new(b"TestEval");
+      assert!(EvaluationEngine::verify(&vk, &mut verifier_tr, &C, &point, &eval, &proof).is_ok());
+
+      // Change the proof and expect verification to fail
+      let mut bad_proof = proof.clone();
+      let v1 = bad_proof.v[1];
+      bad_proof.v[0].clone_from(&v1);
+      let mut verifier_tr2 = Keccak256Transcript::new(b"TestEval");
+      assert!(
+        EvaluationEngine::verify(&vk, &mut verifier_tr2, &C, &point, &eval, &bad_proof).is_err()
+      );
+    }
+  }
+
+  #[test]
+  fn test_key_gen() {
+    let n = 100;
+    let tau = Fr::random(OsRng);
+    let powers_of_tau = CommitmentKey::<E>::compute_powers_serial(tau, n);
+    let label = b"test";
+    let res1 = CommitmentKey::<E>::setup_from_tau_direct(label, &powers_of_tau, tau);
+    let res2 = CommitmentKey::<E>::setup_from_tau_fixed_base_exp(label, &powers_of_tau);
+
+    assert_eq!(res1.ck.len(), res2.ck.len());
+    assert_eq!(res1.h, res2.h);
+    assert_eq!(res1.tau_H, res2.tau_H);
+    for i in 0..res1.ck.len() {
+      assert_eq!(res1.ck[i], res2.ck[i]);
+    }
+  }
+
+  #[test]
+  fn test_save_load_ck() {
+    const BUFFER_SIZE: usize = 64 * 1024;
+    const LABEL: &[u8] = b"test";
+
+    let n = 4;
+    let filename = "/tmp/kzg_test.ptau";
+
+    let ck: CommitmentKey<E> = CommitmentEngine::setup(LABEL, n);
+
+    let file = OpenOptions::new()
+      .write(true)
+      .create(true)
+      .truncate(true)
+      .open(filename)
+      .unwrap();
+    let mut writer = BufWriter::with_capacity(BUFFER_SIZE, file);
+
+    ck.save_to(&mut writer).unwrap();
+
+    let file = OpenOptions::new().read(true).open(filename).unwrap();
+
+    let mut reader = BufReader::new(file);
+
+    let read_ck =
+      hyperkzg::CommitmentEngine::<E>::load_setup(&mut reader, LABEL, ck.ck.len()).unwrap();
+
+    assert_eq!(ck.ck.len(), read_ck.ck.len());
+    assert_eq!(ck.h, read_ck.h);
+    assert_eq!(ck.tau_H, read_ck.tau_H);
+    for i in 0..ck.ck.len() {
+      assert_eq!(ck.ck[i], read_ck.ck[i]);
+    }
+  }
+
+  #[ignore = "only available with external ptau files"]
+  #[test]
+  fn test_load_ptau() {
+    let filename = "/tmp/ppot_0080_13.ptau";
+    let file = OpenOptions::new().read(true).open(filename).unwrap();
+
+    let mut reader = BufReader::new(file);
+
+    let ck = hyperkzg::CommitmentEngine::<E>::load_setup(&mut reader, b"test", 1).unwrap();
+
+    let mut rng = rand::thread_rng();
+
+    let gen_g1 = ck.ck[0];
+    let t_g2 = ck.tau_H;
+
+    for _ in 0..1000 {
+      let x = Fr::from(<rand::rngs::ThreadRng as rand::Rng>::gen::<u64>(&mut rng));
+      let x = x * x * x * x;
+
+      let left = halo2curves::bn256::G1::pairing(&(gen_g1 * x), &t_g2.into());
+      let right = halo2curves::bn256::G1::pairing(&gen_g1.into(), &t_g2.into()) * x;
+
+      assert_eq!(left, right);
     }
   }
 }

@@ -1,17 +1,13 @@
 //! Demonstrates how to use Nova to produce a recursive proof of the correct execution of
 //! iterations of the `MinRoot` function, thereby realizing a Nova-based verifiable delay function (VDF).
 //! We execute a configurable number of iterations of the `MinRoot` function per step of Nova's recursion.
-use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::Field;
 use flate2::{write::ZlibEncoder, Compression};
 use nova_snark::{
+  frontend::{num::AllocatedNum, ConstraintSystem, SynthesisError},
+  nova::{CompressedSNARK, PublicParams, RecursiveSNARK},
   provider::{Bn256EngineKZG, GrumpkinEngine},
-  traits::{
-    circuit::{StepCircuit, TrivialCircuit},
-    snark::RelaxedR1CSSNARKTrait,
-    Engine, Group,
-  },
-  CompressedSNARK, PublicParams, RecursiveSNARK,
+  traits::{circuit::StepCircuit, snark::RelaxedR1CSSNARKTrait, Engine, Group},
 };
 use num_bigint::BigUint;
 use std::time::Instant;
@@ -146,7 +142,7 @@ fn main() {
   let num_steps = 10;
   for num_iters_per_step in [1024, 2048, 4096, 8192, 16384, 32768, 65536] {
     // number of iterations of MinRoot per Nova's recursive step
-    let mut circuit_primary = MinRootCircuit {
+    let circuit = MinRootCircuit {
       seq: vec![
         MinRootIteration {
           x_i: <E1 as Engine>::Scalar::zero(),
@@ -158,21 +154,13 @@ fn main() {
       ],
     };
 
-    let mut circuit_secondary = TrivialCircuit::default();
-
     println!("Proving {num_iters_per_step} iterations of MinRoot per step");
 
     // produce public parameters
     let start = Instant::now();
     println!("Producing public parameters...");
-    let pp = PublicParams::<
-      E1,
-      E2,
-      MinRootCircuit<<E1 as Engine>::GE>,
-      TrivialCircuit<<E2 as Engine>::Scalar>,
-    >::setup(
-      &mut circuit_primary,
-      &mut circuit_secondary,
+    let pp = PublicParams::<E1, E2, MinRootCircuit<<E1 as Engine>::GE>>::setup(
+      &circuit,
       &*S1::ck_floor(),
       &*S2::ck_floor(),
       vec![2],
@@ -199,7 +187,7 @@ fn main() {
     );
 
     // produce non-deterministic advice
-    let (z0_primary, minroot_iterations) = MinRootIteration::<<E1 as Engine>::GE>::new(
+    let (z0, minroot_iterations) = MinRootIteration::<<E1 as Engine>::GE>::new(
       num_iters_per_step * num_steps,
       &<E1 as Engine>::Scalar::zero(),
       &<E1 as Engine>::Scalar::one(),
@@ -217,33 +205,15 @@ fn main() {
       })
       .collect::<Vec<_>>();
 
-    let z0_secondary = vec![<E2 as Engine>::Scalar::zero()];
-
-    type C1 = MinRootCircuit<<E1 as Engine>::GE>;
-    type C2 = TrivialCircuit<<E2 as Engine>::Scalar>;
+    type C = MinRootCircuit<<E1 as Engine>::GE>;
     // produce a recursive SNARK
     println!("Generating a RecursiveSNARK...");
-    let mut recursive_snark: RecursiveSNARK<E1, E2, C1, C2> =
-      RecursiveSNARK::<E1, E2, C1, C2>::new(
-        &pp,
-        &mut minroot_circuits[0],
-        &mut circuit_secondary,
-        &z0_primary,
-        &z0_secondary,
-        None,
-        vec![],
-      )
-      .unwrap();
+    let mut recursive_snark: RecursiveSNARK<E1, E2, C> =
+      RecursiveSNARK::<E1, E2, C>::new(&pp, &minroot_circuits[0], &z0).unwrap();
 
-    for (i, mut circuit_primary) in minroot_circuits.into_iter().enumerate() {
+    for (i, circuit) in minroot_circuits.iter().enumerate() {
       let start = Instant::now();
-      let res = recursive_snark.prove_step(
-        &pp,
-        &mut circuit_primary,
-        &mut circuit_secondary,
-        None,
-        vec![],
-      );
+      let res = recursive_snark.prove_step(&pp, circuit);
       assert!(res.is_ok());
       println!(
         "RecursiveSNARK::prove_step {}: {:?}, took {:?} ",
@@ -256,7 +226,7 @@ fn main() {
     // verify the recursive SNARK
     println!("Verifying a RecursiveSNARK...");
     let start = Instant::now();
-    let res = recursive_snark.verify(&pp, num_steps, &z0_primary, &z0_secondary);
+    let res = recursive_snark.verify(&pp, num_steps, &z0);
     println!(
       "RecursiveSNARK::verify: {:?}, took {:?}",
       res.is_ok(),
@@ -266,11 +236,11 @@ fn main() {
 
     // produce a compressed SNARK
     println!("Generating a CompressedSNARK using Spartan with HyperKZG...");
-    let (pk, vk) = CompressedSNARK::<_, _, _, _, S1, S2>::setup(&pp).unwrap();
+    let (pk, vk) = CompressedSNARK::<_, _, _, S1, S2>::setup(&pp).unwrap();
 
     let start = Instant::now();
 
-    let res = CompressedSNARK::<_, _, _, _, S1, S2>::prove(&pp, &pk, &recursive_snark);
+    let res = CompressedSNARK::<_, _, _, S1, S2>::prove(&pp, &pk, &recursive_snark);
     println!(
       "CompressedSNARK::prove: {:?}, took {:?}",
       res.is_ok(),
@@ -290,7 +260,7 @@ fn main() {
     // verify the compressed SNARK
     println!("Verifying a CompressedSNARK...");
     let start = Instant::now();
-    let res = compressed_snark.verify(&vk, num_steps, &z0_primary, &z0_secondary);
+    let res = compressed_snark.verify(&vk, num_steps, &z0);
     println!(
       "CompressedSNARK::verify: {:?}, took {:?}",
       res.is_ok(),

@@ -5,10 +5,12 @@
 //! Each circuit folds the last invocation of the other into the running instance
 
 use crate::{
-  constants::{NUM_FE_WITHOUT_IO_WIT_FOR_CRHF, NUM_HASH_BITS},
+  constants::NUM_HASH_BITS,
+  frontend::{
+    num::AllocatedNum, AllocatedBit, Assignment, Boolean, ConstraintSystem, SynthesisError,
+  },
   gadgets::{
     ecc::AllocatedPoint,
-    r1cs::{AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance},
     utils::{
       alloc_num_equals, alloc_scalar_as_base, alloc_zero, conditionally_select_vec, le_bits_to_num,
     },
@@ -19,46 +21,16 @@ use crate::{
   },
   Commitment,
 };
-use bellpepper::gadgets::Assignment;
-use bellpepper_core::{
-  boolean::{AllocatedBit, Boolean},
-  num::AllocatedNum,
-  ConstraintSystem, SynthesisError,
-};
 use ff::Field;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct NovaAugmentedCircuitParams {
-  limb_width: usize,
-  n_limbs: usize,
-  is_primary_circuit: bool, // A boolean indicating if this is the primary circuit
-  num_split_witnesses: usize, // num of cmts in the OPPOSITE circuit
-  ram_batch_size: Vec<usize>, // wits in THIS circuit
-}
-
-impl NovaAugmentedCircuitParams {
-  pub const fn new(
-    limb_width: usize,
-    n_limbs: usize,
-    is_primary_circuit: bool,
-    num_split_witnesses: usize,
-    ram_batch_size: Vec<usize>,
-  ) -> Self {
-    Self {
-      limb_width,
-      n_limbs,
-      is_primary_circuit,
-      num_split_witnesses,
-      ram_batch_size,
-    }
-  }
-}
+mod r1cs;
+use r1cs::{AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct NovaAugmentedCircuitInputs<E: Engine> {
-  params: E::Scalar,
+  pp_digest: E::Scalar,
   i: E::Base,
   z0: Vec<E::Base>,
   zi: Option<Vec<E::Base>>,
@@ -74,7 +46,7 @@ pub struct NovaAugmentedCircuitInputs<E: Engine> {
 impl<E: Engine> NovaAugmentedCircuitInputs<E> {
   /// Create new inputs/witness for the verification circuit
   pub fn new(
-    params: E::Scalar,
+    pp_digest: E::Scalar,
     i: E::Base,
     z0: Vec<E::Base>,
     zi: Option<Vec<E::Base>>,
@@ -87,7 +59,7 @@ impl<E: Engine> NovaAugmentedCircuitInputs<E> {
     T: Option<Commitment<E>>,
   ) -> Self {
     Self {
-      params,
+      pp_digest,
       i,
       z0,
       zi,
@@ -105,7 +77,7 @@ impl<E: Engine> NovaAugmentedCircuitInputs<E> {
 /// The augmented circuit F' in Nova that includes a step circuit F
 /// and the circuit for the verifier in Nova's non-interactive folding scheme
 pub struct NovaAugmentedCircuit<'a, E: Engine, SC: StepCircuit<E::Base>> {
-  params: &'a NovaAugmentedCircuitParams,
+  is_primary_circuit: bool, // A boolean indicating if this is the primary circuit
   ro_consts: ROConstantsCircuit<E>,
   inputs: Option<NovaAugmentedCircuitInputs<E>>,
   step_circuit: &'a mut SC, // The function that is applied for each step
@@ -115,14 +87,14 @@ pub struct NovaAugmentedCircuit<'a, E: Engine, SC: StepCircuit<E::Base>> {
 impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
   /// Create a new verification circuit for the input relaxed r1cs instances
   pub const fn new(
-    params: &'a NovaAugmentedCircuitParams,
+    is_primary_circuit: bool,
     inputs: Option<NovaAugmentedCircuitInputs<E>>,
     step_circuit: &'a mut SC,
     ro_consts: ROConstantsCircuit<E>,
     accumulate_cmts: bool,
   ) -> Self {
     Self {
-      params,
+      is_primary_circuit,
       inputs,
       step_circuit,
       ro_consts,
@@ -161,6 +133,15 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
         })
       })
       .collect::<Result<Vec<AllocatedNum<E::Base>>, _>>()?;
+
+    // Allocate pp_digest
+    let pp_digest = alloc_scalar_as_base::<E, _>(
+      cs.namespace(|| "pp_digest"),
+      self.inputs.as_ref().map(|inputs| inputs.pp_digest),
+    )?;
+
+    // Allocate i
+    let i = AllocatedNum::alloc(cs.namespace(|| "i"), || Ok(self.inputs.get()?.i))?;
 
     // Allocate z0
     let z_0 = (0..arity)
@@ -211,8 +192,6 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     let U: AllocatedRelaxedR1CSInstance<E> = AllocatedRelaxedR1CSInstance::alloc(
       cs.namespace(|| "Allocate U"),
       self.inputs.as_ref().and_then(|inputs| inputs.U.as_ref()),
-      self.params.limb_width,
-      self.params.n_limbs,
       self.params.num_split_witnesses,
     )?;
 
@@ -241,31 +220,59 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     )?;
     T.check_on_curve(cs.namespace(|| "check T on curve"))?;
 
-    Ok((params, i, z_0, z_i, ram_hints, C_i, U, r_i, r_next, u, T))
+    Ok((pp_digest, i, z_0, z_i, ram_hints, C_i, U, r_i, r_next, u, T))
+  }
+
+  fn synthesize_hash_check<CS: ConstraintSystem<E::Base>>(
+    &self,
+    mut cs: CS,
+    pp_digest: &AllocatedNum<E::Base>,
+    i: &AllocatedNum<E::Base>,
+    z_0: &[AllocatedNum<E::Base>],
+    z_i: &[AllocatedNum<E::Base>],
+    C_next: &[AllocatedNum<E::Base>],
+    U: &AllocatedRelaxedR1CSInstance<E>,
+    r_i: &AllocatedNum<E::Base>,
+  ) -> Result<AllocatedNum<E::Base>, SynthesisError> {
+    // Check that u.x[0] = Hash(pp_digest, i, z_0, z_i, U, r_i)
+    let mut ro = E::ROCircuit::new(self.ro_consts.clone());
+    ro.absorb(pp_digest);
+    ro.absorb(i);
+    for e in z_0 {
+      ro.absorb(e);
+    }
+    for e in z_i {
+      ro.absorb(e);
+    }
+    if self.accumulate_cmts {
+      for c in C_next.as_ref().unwrap() {
+        ro.absorb(c);
+      }
+    }
+    U.absorb_in_ro(cs.namespace(|| "absorb U"), &mut ro)?;
+    ro.absorb(r_i);
+
+    let hash_bits = ro.squeeze(cs.namespace(|| "Input hash"), NUM_HASH_BITS)?;
+    let hash = le_bits_to_num(cs.namespace(|| "bits to hash"), &hash_bits)?;
+
+    Ok(hash)
   }
 
   /// Synthesizes base case and returns the new relaxed `R1CSInstance`
-  fn synthesize_base_case<CS: ConstraintSystem<<E as Engine>::Base>>(
+  fn synthesize_base_case<CS: ConstraintSystem<E::Base>>(
     &self,
     mut cs: CS,
     u: AllocatedR1CSInstance<E>,
   ) -> Result<AllocatedRelaxedR1CSInstance<E>, SynthesisError> {
-    let U_default: AllocatedRelaxedR1CSInstance<E> = if self.params.is_primary_circuit {
+    let U_default: AllocatedRelaxedR1CSInstance<E> = if self.is_primary_circuit {
       // The primary circuit just returns the default R1CS instance
       AllocatedRelaxedR1CSInstance::default(
         cs.namespace(|| "Allocate U_default"),
-        self.params.limb_width,
-        self.params.n_limbs,
         self.params.num_split_witnesses,
       )?
     } else {
       // The secondary circuit returns the incoming R1CS instance
-      AllocatedRelaxedR1CSInstance::from_r1cs_instance(
-        cs.namespace(|| "Allocate U_default"),
-        u,
-        self.params.limb_width,
-        self.params.n_limbs,
-      )?
+      AllocatedRelaxedR1CSInstance::from_r1cs_instance(cs.namespace(|| "Allocate U_default"), u)?
     };
     Ok(U_default)
   }
@@ -275,63 +282,27 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
   fn synthesize_non_base_case<CS: ConstraintSystem<<E as Engine>::Base>>(
     &self,
     mut cs: CS,
-    params: &AllocatedNum<E::Base>,
-    i: &AllocatedNum<E::Base>,
-    z_0: &[AllocatedNum<E::Base>],
-    z_i: &[AllocatedNum<E::Base>],
+    pp_digest: &AllocatedNum<E::Base>,
     C_i: &Option<Vec<AllocatedNum<E::Base>>>,
     U: &AllocatedRelaxedR1CSInstance<E>,
     r_i: &AllocatedNum<E::Base>,
     u: &AllocatedR1CSInstance<E>,
     T: &AllocatedPoint<E>,
-    arity: usize,
-  ) -> Result<(AllocatedRelaxedR1CSInstance<E>, AllocatedBit), SynthesisError> {
-    // Check that u.x[0] = Hash(params, U, i, z0, zi)
-    let mut ro_num = NUM_FE_WITHOUT_IO_WIT_FOR_CRHF + 2 * arity + 3 * U.W.len();
-    if self.accumulate_cmts {
-      ro_num += C_i.as_ref().unwrap().len();
-    };
-    let mut ro = E::ROCircuit::new(self.ro_consts.clone(), ro_num);
-    ro.absorb(params);
-    ro.absorb(i);
-    for e in z_0 {
-      ro.absorb(e);
-    }
-    for e in z_i {
-      ro.absorb(e);
-    }
-    if self.accumulate_cmts {
-      for c in C_i.as_ref().unwrap() {
-        ro.absorb(c);
-      }
-    }
-    U.absorb_in_ro(cs.namespace(|| "absorb U"), &mut ro)?;
-    ro.absorb(r_i);
-
-    let hash_bits = ro.squeeze(cs.namespace(|| "Input hash"), NUM_HASH_BITS)?;
-    let hash = le_bits_to_num(cs.namespace(|| "bits to hash"), &hash_bits)?;
-    let check_pass = alloc_num_equals(
-      cs.namespace(|| "check consistency of u.X[0] with H(params, U, i, z0, zi)"),
-      &u.X0,
-      &hash,
-    )?;
-
+  ) -> Result<AllocatedRelaxedR1CSInstance<E>, SynthesisError> {
     // Run NIFS Verifier
     let U_fold = U.fold_with_r1cs(
       cs.namespace(|| "compute fold of U and u"),
-      params,
+      pp_digest,
       u,
       T,
       self.ro_consts.clone(),
-      self.params.limb_width,
-      self.params.n_limbs,
     )?;
 
-    Ok((U_fold, check_pass))
+    Ok(U_fold)
   }
 }
 
-impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
+impl<E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'_, E, SC> {
   /// synthesize circuit giving constraint system
   pub fn synthesize<CS: ConstraintSystem<<E as Engine>::Base>>(
     mut self,
@@ -347,7 +318,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     let arity = self.step_circuit.arity() - total_ram;
 
     // Allocate all witnesses
-    let (params, i, z_0, z_i, ram_hints, C_i, U, r_i, r_next, u, T) = self.alloc_witness(
+    let (pp_digest, i, z_0, z_i, ram_hints, C_i, U, r_i, r_next, u, T) = self.alloc_witness(
       cs.namespace(|| "allocate the circuit witness"),
       arity,
       total_ram,
@@ -357,23 +328,37 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     let zero = alloc_zero(cs.namespace(|| "zero"));
     let is_base_case = alloc_num_equals(cs.namespace(|| "Check if base case"), &i.clone(), &zero)?;
 
-    // Synthesize the circuit for the base case and get the new running instance
-    let Unew_base = self.synthesize_base_case(cs.namespace(|| "base case"), u.clone())?;
-
-    // Synthesize the circuit for the non-base case and get the new running
-    // instance along with a boolean indicating if all checks have passed
-    let (Unew_non_base, check_non_base_pass) = self.synthesize_non_base_case(
-      cs.namespace(|| "synthesize non base case"),
-      &params,
+    // compute hash of the non-deterministic inputs
+    let hash = self.synthesize_hash_check(
+      cs.namespace(|| "synthesize input hash check"),
+      &pp_digest,
       &i,
       &z_0,
       &z_i,
       &C_i,
       &U,
       &r_i,
+    )?;
+
+    let check_non_base_pass = alloc_num_equals(
+      cs.namespace(|| "check consistency of u.X[0] with H(params, U, i, z0, zi)"),
+      &u.X0,
+      &hash,
+    )?;
+
+    // Synthesize the circuit for the base case and get the new running instance
+    let Unew_base = self.synthesize_base_case(cs.namespace(|| "base case"), u.clone())?;
+
+    // Synthesize the circuit for the non-base case and get the new running
+    // instance along with a boolean indicating if all checks have passed
+    let Unew_non_base = self.synthesize_non_base_case(
+      cs.namespace(|| "synthesize non base case"),
+      &pp_digest,
+      &C_i,
+      &U,
+      &r_i,
       &u,
       &T,
-      arity,
     )?;
 
     // Either check_non_base_pass=true or we are in the base case
@@ -472,29 +457,17 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
       None
     };
 
-    // Compute the new hash H(params, Unew, i+1, z0, z_{i+1})
-    let mut ro_num = NUM_FE_WITHOUT_IO_WIT_FOR_CRHF + 2 * arity + 3 * Unew.W.len();
-    if self.accumulate_cmts {
-      ro_num += C_i.as_ref().unwrap().len();
-    }
-    let mut ro = E::ROCircuit::new(self.ro_consts, ro_num);
-    ro.absorb(&params);
-    ro.absorb(&i_new);
-    for e in &z_0 {
-      ro.absorb(e);
-    }
-    for e in z_next {
-      ro.absorb(e);
-    }
-    if self.accumulate_cmts {
-      for c in C_next.as_ref().unwrap() {
-        ro.absorb(c);
-      }
-    }
-    Unew.absorb_in_ro(cs.namespace(|| "absorb U_new"), &mut ro)?;
-    ro.absorb(&r_next);
-    let hash_bits = ro.squeeze(cs.namespace(|| "output hash bits"), NUM_HASH_BITS)?;
-    let hash = le_bits_to_num(cs.namespace(|| "convert hash to num"), &hash_bits)?;
+    // Compute the new hash H(pp_digest, Unew, i+1, z0, z_{i+1})
+    let hash = self.synthesize_hash_check(
+      cs.namespace(|| "synthesize output hash check"),
+      &pp_digest,
+      &i_new,
+      &z_0,
+      &z_next,
+      &C_next,
+      &Unew,
+      &r_next,
+    )?;
 
     // Outputs the computed hash and u.X[1] that corresponds to the hash of the other circuit
     u.X1
@@ -509,37 +482,33 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
 mod tests {
   use super::*;
   use crate::{
-    bellpepper::{
+    frontend::{
       r1cs::{NovaShape, NovaWitness},
       solver::SatisfyingAssignment,
       test_shape_cs::TestShapeCS,
     },
-    constants::{BN_LIMB_WIDTH, BN_N_LIMBS},
     gadgets::utils::scalar_as_base,
     provider::{
-      poseidon::PoseidonConstantsCircuit,
-      {Bn256EngineKZG, GrumpkinEngine}, {PallasEngine, VestaEngine},
-      {Secp256k1Engine, Secq256k1Engine},
+      Bn256EngineKZG, GrumpkinEngine, PallasEngine, Secp256k1Engine, Secq256k1Engine, VestaEngine,
     },
     traits::{circuit::TrivialCircuit, snark::default_ck_hint},
   };
 
   // In the following we use 1 to refer to the primary, and 2 to refer to the secondary circuit
   fn test_recursive_circuit_with<E1, E2>(
-    primary_params: &NovaAugmentedCircuitParams,
-    secondary_params: &NovaAugmentedCircuitParams,
-    ro_consts1: ROConstantsCircuit<E2>,
-    ro_consts2: ROConstantsCircuit<E1>,
     num_constraints_primary: usize,
     num_constraints_secondary: usize,
   ) where
     E1: Engine<Base = <E2 as Engine>::Scalar>,
     E2: Engine<Base = <E1 as Engine>::Scalar>,
   {
-    let mut tc1 = TrivialCircuit::default();
+    let ro_consts1 = ROConstantsCircuit::<E2>::default();
+    let ro_consts2 = ROConstantsCircuit::<E1>::default();
+
+    let tc1 = TrivialCircuit::default();
     // Initialize the shape and ck for the primary
     let circuit1: NovaAugmentedCircuit<'_, E2, TrivialCircuit<<E2 as Engine>::Base>> =
-      NovaAugmentedCircuit::new(primary_params, None, &mut tc1, ro_consts1.clone(), false);
+      NovaAugmentedCircuit::new(true, None, &tc1, ro_consts1.clone());
     let mut cs: TestShapeCS<E1> = TestShapeCS::new();
     let _ = circuit1.synthesize(&mut cs);
     let (shape1, ck1) = cs.r1cs_shape(&*default_ck_hint(), false, vec![]);
@@ -548,7 +517,7 @@ mod tests {
     let mut tc2 = TrivialCircuit::default();
     // Initialize the shape and ck for the secondary
     let circuit2: NovaAugmentedCircuit<'_, E1, TrivialCircuit<<E1 as Engine>::Base>> =
-      NovaAugmentedCircuit::new(secondary_params, None, &mut tc2, ro_consts2.clone(), false);
+      NovaAugmentedCircuit::new(false, None, &tc2, ro_consts2.clone());
     let mut cs: TestShapeCS<E2> = TestShapeCS::new();
     let _ = circuit2.synthesize(&mut cs);
     let (shape2, ck2) = cs.r1cs_shape(&*default_ck_hint(), false, vec![]);
@@ -565,6 +534,8 @@ mod tests {
       None,
       None,
       None,
+      ri_1,
+      None,
       None,
       None,
       ri_1,
@@ -572,7 +543,7 @@ mod tests {
       None,
     );
     let circuit1: NovaAugmentedCircuit<'_, E2, TrivialCircuit<<E2 as Engine>::Base>> =
-      NovaAugmentedCircuit::new(primary_params, Some(inputs1), &mut tc1, ro_consts1, false);
+      NovaAugmentedCircuit::new(true, Some(inputs1), &tc1, ro_consts1);
     let _ = circuit1.synthesize(&mut cs1);
     let (inst1, witness1) = cs1.r1cs_instance_and_witness(&shape1, &ck1, None).unwrap();
     // Make sure that this is satisfiable
@@ -589,14 +560,12 @@ mod tests {
       None,
       None,
       None,
-      None,
-      None,
       ri_2,
       Some(inst1),
       None,
     );
     let circuit2: NovaAugmentedCircuit<'_, E1, TrivialCircuit<<E1 as Engine>::Base>> =
-      NovaAugmentedCircuit::new(secondary_params, Some(inputs2), &mut tc2, ro_consts2, false);
+      NovaAugmentedCircuit::new(false, Some(inputs2), &tc2, ro_consts2);
     let _ = circuit2.synthesize(&mut cs2);
     let (inst2, witness2) = cs2.r1cs_instance_and_witness(&shape2, &ck2, None).unwrap();
     // Make sure that it is satisfiable
@@ -604,41 +573,9 @@ mod tests {
   }
 
   #[test]
-  fn test_recursive_circuit_pasta() {
-    // this test checks against values that must be replicated in benchmarks if changed here
-    let params1 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true, 1, vec![]);
-    let params2 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false, 1, vec![]);
-    let ro_consts1: ROConstantsCircuit<VestaEngine> = PoseidonConstantsCircuit::default();
-    let ro_consts2: ROConstantsCircuit<PallasEngine> = PoseidonConstantsCircuit::default();
-
-    test_recursive_circuit_with::<PallasEngine, VestaEngine>(
-      &params1, &params2, ro_consts1, ro_consts2, 9817,
-      10349, // 9817 -> 13833, 10349 -> 14361 -> (final cmt hashing) 15441
-    );
-  }
-
-  #[test]
-  fn test_recursive_circuit_bn256_grumpkin() {
-    let params1 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true, 1, vec![]);
-    let params2 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false, 1, vec![]);
-    let ro_consts1: ROConstantsCircuit<GrumpkinEngine> = PoseidonConstantsCircuit::default();
-    let ro_consts2: ROConstantsCircuit<Bn256EngineKZG> = PoseidonConstantsCircuit::default();
-
-    test_recursive_circuit_with::<Bn256EngineKZG, GrumpkinEngine>(
-      &params1, &params2, ro_consts1, ro_consts2, 9985, 10538, // 9985 -> 14001, 10538 -> 14550
-    );
-  }
-
-  #[test]
-  fn test_recursive_circuit_secpq() {
-    let params1 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, true, 1, vec![]);
-    let params2 = NovaAugmentedCircuitParams::new(BN_LIMB_WIDTH, BN_N_LIMBS, false, 1, vec![]);
-    let ro_consts1: ROConstantsCircuit<Secq256k1Engine> = PoseidonConstantsCircuit::default();
-    let ro_consts2: ROConstantsCircuit<Secp256k1Engine> = PoseidonConstantsCircuit::default();
-
-    test_recursive_circuit_with::<Secp256k1Engine, Secq256k1Engine>(
-      &params1, &params2, ro_consts1, ro_consts2, 10264,
-      10961, // 10264 -> 14280, 10961 -> 14973 -> (final cmt hashing) 16257
-    );
+  fn test_recursive_circuit() {
+    test_recursive_circuit_with::<PallasEngine, VestaEngine>(9817, 10349);
+    test_recursive_circuit_with::<Bn256EngineKZG, GrumpkinEngine>(9985, 10538);
+    test_recursive_circuit_with::<Secp256k1Engine, Secq256k1Engine>(10264, 10961);
   }
 }

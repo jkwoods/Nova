@@ -5,13 +5,12 @@
 use super::{shape_cs::ShapeCS, solver::SatisfyingAssignment, test_shape_cs::TestShapeCS};
 use crate::{
   errors::NovaError,
-  r1cs::{CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness, SparseMatrix, R1CS},
+  frontend::{Index, LinearCombination},
+  r1cs::{CommitmentKeyHint, R1CSInstance, R1CSShape, R1CSWitness, SparseMatrix},
   traits::Engine,
   CommitmentKey,
 };
-use bellpepper_core::{Index, LinearCombination};
-use ff::{Field, PrimeField};
-use rand_core::OsRng;
+use ff::PrimeField;
 
 /// `NovaWitness` provide a method for acquiring an `R1CSInstance` and `R1CSWitness` from implementers.
 pub trait NovaWitness<E: Engine> {
@@ -124,8 +123,7 @@ macro_rules! impl_nova_shape {
 
         // Don't count One as an input for shape's purposes.
         let S = R1CSShape::new(num_constraints, num_vars, num_inputs - 1, A, B, C).unwrap();
-
-        let ck = R1CS::<E>::commitment_key(&S, ck_hint);
+        let ck = S.commitment_key(ck_hint);
 
         (S, ck)
       }

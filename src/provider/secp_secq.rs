@@ -1,20 +1,23 @@
 //! This module implements the Nova traits for `secp::Point`, `secp::Scalar`, `secq::Point`, `secq::Scalar`.
 use crate::{
   impl_traits,
-  provider::traits::DlogGroup,
+  provider::{
+    msm::{msm, msm_small},
+    traits::{DlogGroup, DlogGroupExt},
+  },
   traits::{Group, PrimeFieldExt, TranscriptReprTrait},
 };
 use digest::{ExtendableOutput, Update};
-use ff::{FromUniformBytes, PrimeField};
-use group::{cofactor::CofactorCurveAffine, Curve, Group as AnotherGroup};
+use ff::FromUniformBytes;
 use halo2curves::{
-  msm::best_multiexp,
+  group::{cofactor::CofactorCurveAffine, Curve, Group as AnotherGroup},
   secp256k1::{Secp256k1, Secp256k1Affine},
   secq256k1::{Secq256k1, Secq256k1Affine},
+  CurveAffine, CurveExt,
 };
 use num_bigint::BigInt;
-use num_traits::Num;
-use pasta_curves::arithmetic::{CurveAffine, CurveExt};
+use num_integer::Integer;
+use num_traits::{Num, ToPrimitive};
 use rayon::prelude::*;
 use sha3::Shake256;
 use std::io::Read;

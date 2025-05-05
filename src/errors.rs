@@ -1,4 +1,5 @@
 //! This module defines errors returned by the library.
+use crate::frontend::SynthesisError;
 use core::fmt::Debug;
 use thiserror::Error;
 
@@ -20,11 +21,17 @@ pub enum NovaError {
   #[error("InvalidWitnessLength")]
   InvalidWitnessLength,
   /// returned if the supplied witness is not a satisfying witness to a given shape and instance
-  #[error("UnSat")]
-  UnSat,
+  #[error("UnSat: {reason}")]
+  UnSat {
+    /// The reason for circuit UnSat failure
+    reason: String,
+  },
   /// returned if proof verification fails
   #[error("ProofVerifyError")]
-  ProofVerifyError,
+  ProofVerifyError {
+    /// The reason for the proof verification error
+    reason: String,
+  },
   /// returned if the provided commitment key is not of sufficient length
   #[error("InvalidCommitmentKeyLength")]
   InvalidCommitmentKeyLength,
@@ -75,8 +82,8 @@ pub enum NovaError {
   UnsplitError,
 }
 
-impl From<bellpepper_core::SynthesisError> for NovaError {
-  fn from(err: bellpepper_core::SynthesisError) -> Self {
+impl From<SynthesisError> for NovaError {
+  fn from(err: SynthesisError) -> Self {
     Self::SynthesisError {
       reason: err.to_string(),
     }

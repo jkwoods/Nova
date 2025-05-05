@@ -1,12 +1,13 @@
 //! This module implements various gadgets necessary for folding R1CS types.
-use super::nonnative::{
-  bignat::BigNat,
-  util::{f_to_nat, Num},
-};
 use crate::{
-  constants::{NUM_CHALLENGE_BITS, NUM_FE_WITHOUT_WIT_FOR_RO},
+  constants::{BN_LIMB_WIDTH, BN_N_LIMBS, NUM_CHALLENGE_BITS},
+  frontend::{num::AllocatedNum, Assignment, Boolean, ConstraintSystem, SynthesisError},
   gadgets::{
     ecc::AllocatedPoint,
+    nonnative::{
+      bignat::BigNat,
+      util::{f_to_nat, Num},
+    },
     utils::{
       alloc_bignat_constant, alloc_one, alloc_scalar_as_base, conditionally_select,
       conditionally_select_bignat, le_bits_to_num,
@@ -15,14 +16,12 @@ use crate::{
   r1cs::{R1CSInstance, RelaxedR1CSInstance},
   traits::{commitment::CommitmentTrait, Engine, Group, ROCircuitTrait, ROConstantsCircuit},
 };
-use bellpepper::gadgets::{boolean::Boolean, num::AllocatedNum, Assignment};
-use bellpepper_core::{ConstraintSystem, SynthesisError};
 use ff::Field;
 
 /// An Allocated R1CS Instance
 #[derive(Clone)]
 pub struct AllocatedR1CSInstance<E: Engine> {
-  pub(crate) W: Vec<AllocatedPoint<E>>,
+  pub(crate) comm_W: Vec<AllocatedPoint<E>>,
   pub(crate) X0: AllocatedNum<E::Base>,
   pub(crate) X1: AllocatedNum<E::Base>,
 }
@@ -34,40 +33,40 @@ impl<E: Engine> AllocatedR1CSInstance<E> {
     u: Option<&R1CSInstance<E>>,
     num_split_wits: usize,
   ) -> Result<Self, SynthesisError> {
-    let mut W = Vec::new();
+    let mut comm_W = Vec::new();
 
     if u.is_some() {
       for (i, w) in u.as_ref().unwrap().comm_W.iter().enumerate() {
-        W.push(AllocatedPoint::alloc(
+        comm_W.push(AllocatedPoint::alloc(
           cs.namespace(|| format!("allocate W_{}", i)),
           Some(w.to_coordinates()),
         )?);
       }
     } else {
       for i in 0..num_split_wits {
-        W.push(AllocatedPoint::alloc(
+        comm_W.push(AllocatedPoint::alloc(
           cs.namespace(|| format!("allocate W_{}", i)),
           None,
         )?);
       }
     }
 
-    for (i, w) in W.iter().enumerate() {
+    for (i, w) in comm_W.iter().enumerate() {
       w.check_on_curve(cs.namespace(|| format!("check W on curve {}", i)))?;
     }
 
     let X0 = alloc_scalar_as_base::<E, _>(cs.namespace(|| "allocate X[0]"), u.map(|u| u.X[0]))?;
     let X1 = alloc_scalar_as_base::<E, _>(cs.namespace(|| "allocate X[1]"), u.map(|u| u.X[1]))?;
 
-    Ok(AllocatedR1CSInstance { W, X0, X1 })
+    Ok(AllocatedR1CSInstance { comm_W, X0, X1 })
   }
 
   /// Absorb the provided instance in the RO
   pub fn absorb_in_ro(&self, ro: &mut E::ROCircuit) {
-    for w in &self.W {
-      ro.absorb(&w.x);
-      ro.absorb(&w.y);
-      ro.absorb(&w.is_infinity);
+    for c in &self.comm_W {
+      ro.absorb(&c.x);
+      ro.absorb(&c.y);
+      ro.absorb(&c.is_infinity);
     }
     ro.absorb(&self.X0);
     ro.absorb(&self.X1);
@@ -88,8 +87,6 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
   pub fn alloc<CS: ConstraintSystem<<E as Engine>::Base>>(
     mut cs: CS,
     inst: Option<&RelaxedR1CSInstance<E>>,
-    limb_width: usize,
-    n_limbs: usize,
     num_split_wits: usize,
   ) -> Result<Self, SynthesisError> {
     // We do not need to check that W or E are well-formed (e.g., on the curve) as we do a hash check
@@ -127,15 +124,15 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
     let X0 = BigNat::alloc_from_nat(
       cs.namespace(|| "allocate X[0]"),
       || Ok(f_to_nat(&inst.map_or(E::Scalar::ZERO, |inst| inst.X[0]))),
-      limb_width,
-      n_limbs,
+      BN_LIMB_WIDTH,
+      BN_N_LIMBS,
     )?;
 
     let X1 = BigNat::alloc_from_nat(
       cs.namespace(|| "allocate X[1]"),
       || Ok(f_to_nat(&inst.map_or(E::Scalar::ZERO, |inst| inst.X[1]))),
-      limb_width,
-      n_limbs,
+      BN_LIMB_WIDTH,
+      BN_N_LIMBS,
     )?;
 
     Ok(AllocatedRelaxedR1CSInstance { W, E, u, X0, X1 })
@@ -145,8 +142,6 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
   /// W = E = 0, u = 0, X0 = X1 = 0
   pub fn default<CS: ConstraintSystem<<E as Engine>::Base>>(
     mut cs: CS,
-    limb_width: usize,
-    n_limbs: usize,
     num_split_wits: usize,
   ) -> Result<Self, SynthesisError> {
     let mut W = Vec::new();
@@ -161,19 +156,19 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
 
     // X0 and X1 are allocated and in the honest prover case set to zero
     // If the prover is malicious, it can set to arbitrary values, but the resulting
-    // relaxed R1CS instance with the the checked default values of W, E, and u must still be satisfying
+    // relaxed R1CS instance with the checked default values of W, E, and u must still be satisfying
     let X0 = BigNat::alloc_from_nat(
       cs.namespace(|| "allocate x_default[0]"),
       || Ok(f_to_nat(&E::Scalar::ZERO)),
-      limb_width,
-      n_limbs,
+      BN_LIMB_WIDTH,
+      BN_N_LIMBS,
     )?;
 
     let X1 = BigNat::alloc_from_nat(
       cs.namespace(|| "allocate x_default[1]"),
       || Ok(f_to_nat(&E::Scalar::ZERO)),
-      limb_width,
-      n_limbs,
+      BN_LIMB_WIDTH,
+      BN_N_LIMBS,
     )?;
 
     Ok(AllocatedRelaxedR1CSInstance { W, E, u, X0, X1 })
@@ -184,8 +179,6 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
   pub fn from_r1cs_instance<CS: ConstraintSystem<<E as Engine>::Base>>(
     mut cs: CS,
     inst: AllocatedR1CSInstance<E>,
-    limb_width: usize,
-    n_limbs: usize,
   ) -> Result<Self, SynthesisError> {
     let E = AllocatedPoint::default(cs.namespace(|| "allocate default E"))?;
 
@@ -194,19 +187,19 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
     let X0 = BigNat::from_num(
       cs.namespace(|| "allocate X0 from relaxed r1cs"),
       &Num::from(inst.X0),
-      limb_width,
-      n_limbs,
+      BN_LIMB_WIDTH,
+      BN_N_LIMBS,
     )?;
 
     let X1 = BigNat::from_num(
       cs.namespace(|| "allocate X1 from relaxed r1cs"),
       &Num::from(inst.X1),
-      limb_width,
-      n_limbs,
+      BN_LIMB_WIDTH,
+      BN_N_LIMBS,
     )?;
 
     Ok(AllocatedRelaxedR1CSInstance {
-      W: inst.W,
+      W: inst.comm_W,
       E,
       u,
       X0,
@@ -273,11 +266,9 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
     u: &AllocatedR1CSInstance<E>,
     T: &AllocatedPoint<E>,
     ro_consts: ROConstantsCircuit<E>,
-    limb_width: usize,
-    n_limbs: usize,
   ) -> Result<AllocatedRelaxedR1CSInstance<E>, SynthesisError> {
     // Compute r:
-    let mut ro = E::ROCircuit::new(ro_consts, NUM_FE_WITHOUT_WIT_FOR_RO + 3 * u.W.len());
+    let mut ro = E::ROCircuit::new(ro_consts);
     ro.absorb(params);
 
     // running instance `U` does not need to absorbed since u.X[0] = Hash(params, U, i, z0, zi)
@@ -291,7 +282,7 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
 
     // W_fold = self.W + r * u.W
     let mut W_fold = Vec::new();
-    for (i, (uw, sw)) in u.W.iter().zip(&self.W).enumerate() {
+    for (i, (uw, sw)) in u.comm_W.iter().zip(&self.W).enumerate() {
       let rW = uw.scalar_mul(cs.namespace(|| format!("r * u.W {}", i)), &r_bits)?;
       W_fold.push(sw.add(cs.namespace(|| format!("self.W + r * u.W {}", i)), &rW)?);
     }
@@ -316,24 +307,24 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
     let r_bn = BigNat::from_num(
       cs.namespace(|| "allocate r_bn"),
       &Num::from(r),
-      limb_width,
-      n_limbs,
+      BN_LIMB_WIDTH,
+      BN_N_LIMBS,
     )?;
 
     // Allocate the order of the non-native field as a constant
     let m_bn = alloc_bignat_constant(
       cs.namespace(|| "alloc m"),
       &E::GE::group_params().2,
-      limb_width,
-      n_limbs,
+      BN_LIMB_WIDTH,
+      BN_N_LIMBS,
     )?;
 
     // Analyze X0 to bignat
     let X0_bn = BigNat::from_num(
       cs.namespace(|| "allocate X0_bn"),
       &Num::from(u.X0.clone()),
-      limb_width,
-      n_limbs,
+      BN_LIMB_WIDTH,
+      BN_N_LIMBS,
     )?;
 
     // Fold self.X[0] + r * X[0]
@@ -347,8 +338,8 @@ impl<E: Engine> AllocatedRelaxedR1CSInstance<E> {
     let X1_bn = BigNat::from_num(
       cs.namespace(|| "allocate X1_bn"),
       &Num::from(u.X1.clone()),
-      limb_width,
-      n_limbs,
+      BN_LIMB_WIDTH,
+      BN_N_LIMBS,
     )?;
 
     // Fold self.X[1] + r * X[1]

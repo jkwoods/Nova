@@ -2,12 +2,14 @@
 //! In particular, it supports any SNARK that implements `RelaxedR1CSSNARK` trait
 //! (e.g., with the SNARKs implemented in ppsnark.rs or snark.rs).
 use crate::{
-  bellpepper::{
+  errors::NovaError,
+  frontend::{
+    num::AllocatedNum,
     r1cs::{NovaShape, NovaWitness},
     shape_cs::ShapeCS,
     solver::SatisfyingAssignment,
+    Circuit, ConstraintSystem, SynthesisError,
   },
-  errors::NovaError,
   r1cs::{R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness},
   traits::{
     circuit::StepCircuit,
@@ -17,14 +19,21 @@ use crate::{
   },
   Commitment, CommitmentKey, DerandKey,
 };
-use bellpepper_core::{num::AllocatedNum, Circuit, ConstraintSystem, SynthesisError};
 use core::marker::PhantomData;
 use ff::Field;
 use serde::{Deserialize, Serialize};
 
-struct DirectCircuit<E: Engine, SC: StepCircuit<E::Scalar>> {
+/// A direct circuit that can be synthesized
+pub struct DirectCircuit<E: Engine, SC: StepCircuit<E::Scalar>> {
   z_i: Option<Vec<E::Scalar>>, // inputs to the circuit
   sc: SC,                      // step circuit to be executed
+}
+
+impl<E: Engine, SC: StepCircuit<E::Scalar>> DirectCircuit<E, SC> {
+  /// Create a new direct circuit from a step circuit and optional inputs
+  pub fn new(z_i: Option<Vec<E::Scalar>>, sc: SC) -> Self {
+    Self { z_i, sc }
+  }
 }
 
 impl<E: Engine, SC: StepCircuit<E::Scalar>> Circuit<E::Scalar> for DirectCircuit<E, SC> {
@@ -139,8 +148,10 @@ impl<E: Engine, S: RelaxedR1CSSNARKTrait<E>, C: StepCircuit<E::Scalar>> DirectSN
 
     let _ = circuit.synthesize(&mut cs);
     let (u, w) = cs
-      .r1cs_instance_and_witness(&pk.S, &pk.ck, None)
-      .map_err(|_e| NovaError::UnSat)?;
+      .r1cs_instance_and_witness(&pk.S, &pk.ck)
+      .map_err(|_e| NovaError::UnSat {
+        reason: "Unable to generate a satisfying witness".to_string(),
+      })?;
 
     // convert the instance and witness to relaxed form
     let (u_relaxed, w_relaxed) = (
@@ -190,8 +201,10 @@ impl<E: Engine, S: RelaxedR1CSSNARKTrait<E>, C: StepCircuit<E::Scalar>> DirectSN
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::provider::{Bn256EngineKZG, PallasEngine, Secp256k1Engine};
-  use ::bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
+  use crate::{
+    frontend::{num::AllocatedNum, ConstraintSystem, SynthesisError},
+    provider::{Bn256EngineKZG, PallasEngine, Secp256k1Engine},
+  };
   use core::marker::PhantomData;
   use ff::PrimeField;
 
