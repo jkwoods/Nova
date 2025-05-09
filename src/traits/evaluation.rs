@@ -4,7 +4,7 @@
 use crate::{
   errors::NovaError,
   traits::{commitment::CommitmentEngineTrait, Engine},
-  CommitmentKey, R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness,
+  CommitmentKey,
 };
 use serde::{Deserialize, Serialize};
 

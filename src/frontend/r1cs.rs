@@ -10,7 +10,8 @@ use crate::{
   traits::Engine,
   CommitmentKey,
 };
-use ff::PrimeField;
+use ff::{Field, PrimeField};
+use rand_core::OsRng;
 
 /// `NovaWitness` provide a method for acquiring an `R1CSInstance` and `R1CSWitness` from implementers.
 pub trait NovaWitness<E: Engine> {
@@ -31,8 +32,7 @@ pub trait NovaShape<E: Engine> {
   fn r1cs_shape(
     &self,
     ck_hint: &CommitmentKeyHint<E>,
-    custom_shape: bool,
-    ram_batch_size: Vec<usize>,
+    ram_batch_sizes: Vec<usize>,
   ) -> (R1CSShape<E>, CommitmentKey<E>);
 }
 
@@ -84,8 +84,7 @@ macro_rules! impl_nova_shape {
       fn r1cs_shape(
         &self,
         ck_hint: &CommitmentKeyHint<E>,
-        custom_shape: bool,
-        ram_batch_size: Vec<usize>,
+        ram_batch_sizes: Vec<usize>,
       ) -> (R1CSShape<E>, CommitmentKey<E>) {
         let mut A = SparseMatrix::<E::Scalar>::empty();
         let mut B = SparseMatrix::<E::Scalar>::empty();
@@ -96,14 +95,9 @@ macro_rules! impl_nova_shape {
         let num_inputs = self.num_inputs();
         let num_constraints = self.num_constraints();
 
-        let num_vars = if custom_shape {
-          let mut nv = ram_batch_size.clone();
-          nv.push(self.num_aux() - ram_batch_size.iter().sum::<usize>());
+        let mut num_vars = ram_batch_sizes.clone();
+        num_vars.push(self.num_aux() - ram_batch_sizes.iter().sum::<usize>());
 
-          nv
-        } else {
-          vec![self.num_aux()]
-        };
         let total_num_vars = num_vars.iter().sum();
 
         for constraint in self.constraints.iter() {

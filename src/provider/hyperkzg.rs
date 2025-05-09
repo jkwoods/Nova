@@ -108,8 +108,6 @@ where
   comm: <E as Engine>::GE,
 }
 
-<<<<<<< HEAD
-=======
 impl<E: Engine> Commitment<E>
 where
   E::GE: PairingGroup,
@@ -124,7 +122,6 @@ where
   }
 }
 
->>>>>>> upstream/main
 impl<E: Engine> CommitmentTrait<E> for Commitment<E>
 where
   E::GE: PairingGroup,
@@ -134,8 +131,6 @@ where
   }
 }
 
-<<<<<<< HEAD
-=======
 impl<E: Engine> CommitmentKey<E>
 where
   E::GE: PairingGroup,
@@ -154,7 +149,6 @@ where
   }
 }
 
->>>>>>> upstream/main
 impl<E: Engine> Default for Commitment<E>
 where
   E::GE: PairingGroup,
@@ -198,8 +192,6 @@ where
   }
 }
 
-<<<<<<< HEAD
-=======
 impl<E: Engine> AbsorbInRO2Trait<E> for Commitment<E>
 where
   E::GE: PairingGroup,
@@ -222,7 +214,6 @@ where
   }
 }
 
->>>>>>> upstream/main
 impl<E: Engine> MulAssign<E::Scalar> for Commitment<E>
 where
   E::GE: PairingGroup,
@@ -233,11 +224,7 @@ where
   }
 }
 
-<<<<<<< HEAD
-impl<'a, 'b, E: Engine> Mul<&'b E::Scalar> for &'a Commitment<E>
-=======
 impl<'b, E: Engine> Mul<&'b E::Scalar> for &'_ Commitment<E>
->>>>>>> upstream/main
 where
   E::GE: PairingGroup,
 {
@@ -282,20 +269,6 @@ pub struct CommitmentEngine<E: Engine> {
   _p: PhantomData<E>,
 }
 
-<<<<<<< HEAD
-impl<E: Engine> CommitmentEngineTrait<E> for CommitmentEngine<E>
-where
-  E::GE: PairingGroup,
-{
-  type Commitment = Commitment<E>;
-  type CommitmentKey = CommitmentKey<E>;
-  type DerandKey = DerandKey<E>;
-
-  fn setup(label: &'static [u8], n: usize) -> Self::CommitmentKey {
-    // NOTE: this is for testing purposes and should not be used in production
-    // TODO: we need to decide how to generate load/store parameters
-    let tau = E::Scalar::random(OsRng);
-=======
 impl<E: Engine> CommitmentKey<E>
 where
   E::GE: PairingGroup,
@@ -306,7 +279,6 @@ where
     const T1: usize = 1 << 16;
     const T2: usize = 100_000;
 
->>>>>>> upstream/main
     let num_gens = n.next_power_of_two();
 
     let tau = E::Scalar::random(rng);
@@ -351,22 +323,6 @@ where
       .map(|i| (<E::GE as DlogGroup>::gen() * powers_of_tau[i]).affine())
       .collect();
 
-<<<<<<< HEAD
-    let h = E::GE::from_label(label, 1).first().unwrap().clone();
-
-    let tau_H = (<<E::GE as PairingGroup>::G2 as DlogGroup>::gen() * tau).affine();
-
-    Self::CommitmentKey { ck, h, tau_H }
-  }
-
-  fn extend_key(ck: &Self::CommitmentKey) -> Self::CommitmentKey {}
-
-  fn derand_key(ck: &Self::CommitmentKey) -> Self::DerandKey {
-    Self::DerandKey { h: ck.h.clone() }
-  }
-
-  fn commit(ck: &Self::CommitmentKey, v: &[E::Scalar], r: &E::Scalar) -> Self::Commitment {
-=======
     let h = *E::GE::from_label(label, 1).first().unwrap();
 
     let tau_H = (<<E::GE as PairingGroup>::G2 as DlogGroup>::gen() * tau).affine();
@@ -543,31 +499,11 @@ where
     v: &[T],
     r: &E::Scalar,
   ) -> Self::Commitment {
->>>>>>> upstream/main
     assert!(ck.ck.len() >= v.len());
 
-    let mut scalars: Vec<E::Scalar> = v.to_vec();
-    scalars.push(*r);
-    let mut bases = ck.ck[..v.len()].to_vec();
-    bases.push(ck.h.clone());
-
     Commitment {
-<<<<<<< HEAD
-      comm: E::GE::vartime_multiscalar_mul(&scalars, &bases),
-    }
-  }
-
-  fn derandomize(
-    dk: &Self::DerandKey,
-    commit: &Self::Commitment,
-    r: &E::Scalar,
-  ) -> Self::Commitment {
-    Commitment {
-      comm: commit.comm - <E::GE as DlogGroup>::group(&dk.h) * r,
-=======
       comm: E::GE::vartime_multiscalar_mul_small(v, &ck.ck[..v.len()])
         + <E::GE as DlogGroup>::group(&ck.h) * r,
->>>>>>> upstream/main
     }
   }
 
@@ -886,16 +822,10 @@ where
 
     // We do not need to commit to the first polynomial as it is already committed.
     // Compute commitments in parallel
-<<<<<<< HEAD
-    let com: Vec<G1Affine<E>> = (1..polys.len())
-      .into_par_iter()
-      .map(|i| E::CE::commit(ck, &polys[i], &E::Scalar::ZERO).comm.affine())
-=======
     let r = vec![E::Scalar::ZERO; ell - 1];
     let com: Vec<G1Affine<E>> = E::CE::batch_commit(ck, &polys[1..], r.as_slice())
       .iter()
       .map(|i| i.comm.affine())
->>>>>>> upstream/main
       .collect();
 
     // Phase 2
@@ -1211,7 +1141,7 @@ mod tests {
     }
   }
 
-  #[ignore = "only available with external ptau files"]
+  //#[ignore = "only available with external ptau files"]
   #[test]
   fn test_hyperkzg_large_from_file() {
     // test the hyperkzg prover and verifier with random instances (derived from a seed)
@@ -1224,7 +1154,7 @@ mod tests {
       let point = (0..ell).map(|_| Fr::random(&mut rng)).collect::<Vec<_>>();
       let eval = MultilinearPolynomial::evaluate_with(&poly, &point);
 
-      let mut reader = BufReader::new(std::fs::File::open("/tmp/ppot_0080_13.ptau").unwrap());
+      let mut reader = BufReader::new(std::fs::File::open("./tmp/ppot_0080_13.ptau").unwrap());
 
       let ck: CommitmentKey<E> = CommitmentEngine::load_setup(&mut reader, b"test", n).unwrap();
       let (pk, vk) = EvaluationEngine::setup(&ck);
@@ -1305,10 +1235,10 @@ mod tests {
     }
   }
 
-  #[ignore = "only available with external ptau files"]
+  //#[ignore = "only available with external ptau files"]
   #[test]
   fn test_load_ptau() {
-    let filename = "/tmp/ppot_0080_13.ptau";
+    let filename = "./tmp/ppot_0080_13.ptau";
     let file = OpenOptions::new().read(true).open(filename).unwrap();
 
     let mut reader = BufReader::new(file);

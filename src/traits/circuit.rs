@@ -62,7 +62,7 @@ impl<F: PrimeField> StepCircuit<F> for NonTrivialCircuit<F> {
   }
 
   fn synthesize<CS: ConstraintSystem<F>>(
-    &self,
+    &mut self,
     cs: &mut CS,
     z: &[AllocatedNum<F>],
   ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {

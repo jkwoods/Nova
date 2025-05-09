@@ -68,15 +68,6 @@ where
   }
 }
 
-impl<E: Engine> AffineTrait<E> for Commitment<E>
-where
-  E::GE: DlogGroup,
-{
-  fn affine(&self) -> <E::GE as DlogGroup>::AffineGroupElement {
-    self.comm.affine()
-  }
-}
-
 impl<E: Engine> Default for Commitment<E>
 where
   E::GE: DlogGroup,

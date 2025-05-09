@@ -205,7 +205,7 @@ fn main() {
   let num_steps = 32;
   for num_ops_per_step in [1024, 2048, 4096, 8192, 16384, 32768, 65536] {
     // number of instances of AND per Nova's recursive step
-    let circuit = AndCircuit::new(num_ops_per_step);
+    let mut circuit = AndCircuit::new(num_ops_per_step);
 
     println!(
       "Proving {} AND ops ({num_ops_per_step} instances per step and {num_steps} steps)",
@@ -216,7 +216,7 @@ fn main() {
     let start = Instant::now();
     println!("Producing public parameters...");
     let pp = PublicParams::<E1, E2, AndCircuit<<E1 as Engine>::GE>>::setup(
-      &circuit,
+      &mut circuit,
       &*S1::ck_floor(),
       &*S2::ck_floor(),
       vec![2],
@@ -251,13 +251,19 @@ fn main() {
 
     // produce a recursive SNARK
     println!("Generating a RecursiveSNARK...");
-    let mut recursive_snark: RecursiveSNARK<E1, E2, C> =
-      RecursiveSNARK::<E1, E2, C>::new(&pp, &circuits[0], &[<E1 as Engine>::Scalar::zero()])
-        .unwrap();
+    let mut recursive_snark: RecursiveSNARK<E1, E2, C> = RecursiveSNARK::<E1, E2, C>::new(
+      &pp,
+      &mut circuits[0],
+      &[<E1 as Engine>::Scalar::zero()],
+      None,
+      vec![],
+      vec![],
+    )
+    .unwrap();
 
     let start = Instant::now();
-    for circuit in circuits.iter() {
-      let res = recursive_snark.prove_step(&pp, circuit);
+    for mut circuit in circuits.into_iter() {
+      let res = recursive_snark.prove_step(&pp, &mut circuit, None, vec![], vec![]);
       assert!(res.is_ok());
     }
     println!(

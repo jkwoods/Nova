@@ -104,16 +104,16 @@ fn main() {
   let num_steps = 10;
   for num_elts_per_step in [1024, 2048, 4096] {
     // number of instances of AND per Nova's recursive step
-    let circuit = HashChainCircuit::new(num_elts_per_step);
+    let mut circuit = HashChainCircuit::new(num_elts_per_step);
 
     // produce public parameters
     let start = Instant::now();
     println!("Producing public parameters...");
     let pp = PublicParams::<E1, E2, HashChainCircuit<<E1 as Engine>::GE>>::setup(
-      &circuit,
+      &mut circuit,
       &*S1::ck_floor(),
       &*S2::ck_floor(),
-      vec![2],
+      vec![],
     )
     .unwrap();
     println!("PublicParams::setup, took {:?} ", start.elapsed());
@@ -147,13 +147,19 @@ fn main() {
     println!(
       "Generating a RecursiveSNARK with {num_elts_per_step} field elements per hashchain node..."
     );
-    let mut recursive_snark: RecursiveSNARK<E1, E2, C> =
-      RecursiveSNARK::<E1, E2, C>::new(&pp, &circuits[0], &[<E1 as Engine>::Scalar::zero()])
-        .unwrap();
+    let mut recursive_snark: RecursiveSNARK<E1, E2, C> = RecursiveSNARK::<E1, E2, C>::new(
+      &pp,
+      &mut circuits[0],
+      &[<E1 as Engine>::Scalar::zero()],
+      None,
+      vec![],
+      vec![],
+    )
+    .unwrap();
 
-    for (i, circuit) in circuits.iter().enumerate() {
+    for (i, mut circuit) in circuits.into_iter().enumerate() {
       let start = Instant::now();
-      let res = recursive_snark.prove_step(&pp, circuit);
+      let res = recursive_snark.prove_step(&pp, &mut circuit, None, vec![], vec![]);
       assert!(res.is_ok());
 
       println!("RecursiveSNARK::prove {} : took {:?} ", i, start.elapsed());

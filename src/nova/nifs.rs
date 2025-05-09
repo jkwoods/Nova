@@ -202,107 +202,6 @@ impl<E: Engine> NIFSRelaxed<E> {
   }
 }
 
-/// A SNARK that holds the proof of a step of an incremental computation
-#[allow(clippy::upper_case_acronyms)]
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(bound = "")]
-pub struct NIFSRelaxed<E: Engine> {
-  pub(crate) comm_T: Commitment<E>,
-}
-
-impl<E: Engine> NIFSRelaxed<E> {
-  /// Same as `prove`, but takes two Relaxed R1CS Instance/Witness pairs
-  pub fn prove(
-    ck: &CommitmentKey<E>,
-    ro_consts: &ROConstants<E>,
-    pp_digest: &E::Scalar,
-    S: &R1CSShape<E>,
-    U1: &RelaxedR1CSInstance<E>,
-    W1: &RelaxedR1CSWitness<E>,
-    U2: &RelaxedR1CSInstance<E>,
-    W2: &RelaxedR1CSWitness<E>,
-  ) -> Result<
-    (
-      NIFSRelaxed<E>,
-      (RelaxedR1CSInstance<E>, RelaxedR1CSWitness<E>),
-    ),
-    NovaError,
-  > {
-    // initialize a new RO
-    let mut ro = E::RO::new(
-      ro_consts.clone(),
-      NUM_FE_WITHOUT_WIT_FOR_RO_RELAXED + 6 * S.num_split_vars.len(),
-    );
-
-    // append the digest of pp to the transcript
-    ro.absorb(scalar_as_base::<E>(*pp_digest));
-
-    // append U1 to transcript
-    // (this function is only used when folding in random instance)
-    U1.absorb_in_ro(&mut ro);
-
-    // append U2 to transcript (randomized instance)
-    U2.absorb_in_ro(&mut ro);
-
-    // compute a commitment to the cross-term
-    let r_T = E::Scalar::random(&mut OsRng);
-    E::Scalar::random(&mut OsRng);
-    let (T, comm_T) = S.commit_T_relaxed(ck, U1, W1, U2, W2, &r_T)?;
-
-    // append `comm_T` to the transcript and obtain a challenge
-    comm_T.absorb_in_ro(&mut ro);
-
-    // compute a challenge from the RO
-    let r = ro.squeeze(NUM_CHALLENGE_BITS);
-
-    // fold the instance using `r` and `comm_T`
-    let U = U1.fold_relaxed(U2, &comm_T, &r);
-
-    // fold the witness using `r` and `T`
-    let W = W1.fold_relaxed(W2, &T, &r_T, &r)?;
-
-    // return the folded instance and witness
-    Ok((Self { comm_T }, (U, W)))
-  }
-
-  /// Same as `verify`, but takes two Relaxed R1CS Instance/Witness pairs
-  pub fn verify(
-    &self,
-    ro_consts: &ROConstants<E>,
-    pp_digest: &E::Scalar,
-    U1: &RelaxedR1CSInstance<E>,
-    U2: &RelaxedR1CSInstance<E>,
-  ) -> Result<RelaxedR1CSInstance<E>, NovaError> {
-    // initialize a new RO
-    let mut ro = E::RO::new(
-      ro_consts.clone(),
-      NUM_FE_WITHOUT_WIT_FOR_RO_RELAXED + 3 * U1.comm_W.len() + 3 * U2.comm_W.len(),
-    );
-
-    // append the digest of pp to the transcript
-    ro.absorb(scalar_as_base::<E>(*pp_digest));
-
-    // append U1 to transcript
-    // (this function is only used when folding in random instance)
-    U1.absorb_in_ro(&mut ro);
-
-    // append U2 to transcript
-    U2.absorb_in_ro(&mut ro);
-
-    // append `comm_T` to the transcript and obtain a challenge
-    self.comm_T.absorb_in_ro(&mut ro);
-
-    // compute a challenge from the RO
-    let r = ro.squeeze(NUM_CHALLENGE_BITS);
-
-    // fold the instance using `r` and `comm_T`
-    let U = U1.fold_relaxed(U2, &self.comm_T, &r);
-
-    // return the folded instance
-    Ok(U)
-  }
-}
-
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -358,7 +257,7 @@ mod tests {
     // First create the shape
     let mut cs: TestShapeCS<E> = TestShapeCS::new();
     let _ = synthesize_tiny_r1cs_bellpepper(&mut cs, None);
-    let (shape, ck) = cs.r1cs_shape(&*default_ck_hint());
+    let (shape, ck) = cs.r1cs_shape(&*default_ck_hint(), vec![]);
     let ro_consts = ROConstants::<E>::default();
 
     // Now get the instance and assignment for one instance

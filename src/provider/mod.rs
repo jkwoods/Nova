@@ -3,7 +3,6 @@
 // public modules to be used as an evaluation engine with Spartan
 pub mod bn256_grumpkin;
 pub mod hyperkzg;
-pub mod hyrax_pc;
 pub mod incremental;
 pub mod ipa_pc;
 pub mod pasta;

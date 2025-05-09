@@ -25,7 +25,7 @@ use crate::{
     snark::{DigestHelperTrait, RelaxedR1CSSNARKTrait},
     Engine, TranscriptEngineTrait,
   },
-  zip_with, CommitmentKey,
+  zip_with, Commitment, CommitmentKey, CE,
 };
 use ff::Field;
 use itertools::Itertools as _;

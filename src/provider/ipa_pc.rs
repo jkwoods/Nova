@@ -8,7 +8,7 @@ use crate::{
     commitment::CommitmentEngineTrait, evaluation::EvaluationEngineTrait, Engine,
     TranscriptEngineTrait, TranscriptReprTrait,
   },
-  Commitment, CommitmentKey, R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness, CE,
+  Commitment, CommitmentKey, CE,
 };
 use core::iter;
 use ff::Field;

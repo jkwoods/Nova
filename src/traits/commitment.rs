@@ -41,40 +41,11 @@ pub trait CommitmentTrait<E: Engine>:
   fn to_coordinates(&self) -> (E::Base, E::Base, bool);
 }
 
-/// A trait to convert commitments
-pub trait AffineTrait<E: Engine> {
-  /// Returns the affine representation of the commitment
-  fn affine(&self) -> <E::GE as DlogGroup>::AffineGroupElement
-  where
-    E::GE: DlogGroup;
-}
-
 /// A trait that helps determine the length of a structure.
 /// Note this does not impose any memory representation constraints on the structure.
 pub trait Len {
   /// Returns the length of the structure.
   fn length(&self) -> usize;
-}
-
-/// A trait to get generators from a CommitmentKey
-pub trait GetGeneratorsTrait<E: Engine> {
-  /// makes new CommitmentKey
-  fn from_gens(
-    ck: Vec<<E::GE as DlogGroup>::AffineGroupElement>,
-    h: Option<<E::GE as DlogGroup>::AffineGroupElement>,
-  ) -> Self
-  where
-    E::GE: DlogGroup;
-
-  /// Returns generators
-  fn get_ck(&self) -> &Vec<<E::GE as DlogGroup>::AffineGroupElement>
-  where
-    E::GE: DlogGroup;
-
-  /// Returns blinding generator
-  fn get_h(&self) -> &<E::GE as DlogGroup>::AffineGroupElement
-  where
-    E::GE: DlogGroup;
 }
 
 /// A trait that ties different pieces of the commitment generation together

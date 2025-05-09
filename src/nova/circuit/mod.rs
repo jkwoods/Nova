@@ -80,8 +80,9 @@ pub struct NovaAugmentedCircuit<'a, E: Engine, SC: StepCircuit<E::Base>> {
   is_primary_circuit: bool, // A boolean indicating if this is the primary circuit
   ro_consts: ROConstantsCircuit<E>,
   inputs: Option<NovaAugmentedCircuitInputs<E>>,
-  step_circuit: &'a mut SC, // The function that is applied for each step
-  accumulate_cmts: bool,
+  step_circuit: &'a mut SC,   // The function that is applied for each step
+  num_split_witnesses: usize, // num of cmts in the OPPOSITE circuit
+  ram_batch_sizes: Vec<usize>,
 }
 
 impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
@@ -91,14 +92,16 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     inputs: Option<NovaAugmentedCircuitInputs<E>>,
     step_circuit: &'a mut SC,
     ro_consts: ROConstantsCircuit<E>,
-    accumulate_cmts: bool,
+    num_split_witnesses: usize,
+    ram_batch_sizes: Vec<usize>,
   ) -> Self {
     Self {
       is_primary_circuit,
       inputs,
       step_circuit,
       ro_consts,
-      accumulate_cmts,
+      num_split_witnesses,
+      ram_batch_sizes,
     }
   }
 
@@ -153,10 +156,10 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
       .collect::<Result<Vec<AllocatedNum<E::Base>>, _>>()?;
 
     // Allocated Ci (only if split)
-    let zero = vec![E::Base::ZERO; self.params.num_split_witnesses - 1];
-    let C_i = if self.accumulate_cmts {
+    let zero = vec![E::Base::ZERO; self.num_split_witnesses - 1];
+    let C_i = if self.ram_batch_sizes.len() > 0 {
       Some(
-        (0..(self.params.num_split_witnesses - 1))
+        (0..(self.num_split_witnesses - 1))
           .map(|i| {
             AllocatedNum::alloc(cs.namespace(|| format!("Ci_{i}")), || {
               Ok(self.inputs.get()?.Ci.as_ref().unwrap_or(&zero)[i])
@@ -167,15 +170,6 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     } else {
       None
     };
-
-    // Allocate the params
-    let params = alloc_scalar_as_base::<E, _>(
-      cs.namespace(|| "params"),
-      self.inputs.as_ref().map(|inputs| inputs.params),
-    )?;
-
-    // Allocate i
-    let i = AllocatedNum::alloc(cs.namespace(|| "i"), || Ok(self.inputs.get()?.i))?;
 
     // Allocate zi. If inputs.zi is not provided (base case) allocate default value 0
     let zero = vec![E::Base::ZERO; arity];
@@ -192,7 +186,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     let U: AllocatedRelaxedR1CSInstance<E> = AllocatedRelaxedR1CSInstance::alloc(
       cs.namespace(|| "Allocate U"),
       self.inputs.as_ref().and_then(|inputs| inputs.U.as_ref()),
-      self.params.num_split_witnesses,
+      self.num_split_witnesses,
     )?;
 
     // Allocate ri
@@ -207,7 +201,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     let u = AllocatedR1CSInstance::alloc(
       cs.namespace(|| "allocate instance u to fold"),
       self.inputs.as_ref().and_then(|inputs| inputs.u.as_ref()),
-      self.params.num_split_witnesses,
+      self.num_split_witnesses,
     )?;
 
     // Allocate T
@@ -230,7 +224,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     i: &AllocatedNum<E::Base>,
     z_0: &[AllocatedNum<E::Base>],
     z_i: &[AllocatedNum<E::Base>],
-    C_next: &[AllocatedNum<E::Base>],
+    C_next: &Option<Vec<AllocatedNum<E::Base>>>,
     U: &AllocatedRelaxedR1CSInstance<E>,
     r_i: &AllocatedNum<E::Base>,
   ) -> Result<AllocatedNum<E::Base>, SynthesisError> {
@@ -244,7 +238,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     for e in z_i {
       ro.absorb(e);
     }
-    if self.accumulate_cmts {
+    if self.ram_batch_sizes.len() > 0 {
       for c in C_next.as_ref().unwrap() {
         ro.absorb(c);
       }
@@ -268,7 +262,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
       // The primary circuit just returns the default R1CS instance
       AllocatedRelaxedR1CSInstance::default(
         cs.namespace(|| "Allocate U_default"),
-        self.params.num_split_witnesses,
+        self.num_split_witnesses,
       )?
     } else {
       // The secondary circuit returns the incoming R1CS instance
@@ -314,7 +308,7 @@ impl<E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'_, E, SC> {
     ),
     SynthesisError,
   > {
-    let total_ram = self.params.ram_batch_size.iter().sum();
+    let total_ram = self.ram_batch_sizes.iter().sum();
     let arity = self.step_circuit.arity() - total_ram;
 
     // Allocate all witnesses
@@ -430,22 +424,21 @@ impl<E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'_, E, SC> {
     }
 
     // Accumulate Commitments
-    let C_next = if self.accumulate_cmts {
+    let C_next = if self.ram_batch_sizes.len() > 0 {
       let mut cmts = Vec::new();
-      assert!(!self.params.is_primary_circuit);
-      assert!(u.W.len() > 1);
+      // assert!(!self.params.is_primary_circuit);
+      assert!(u.comm_W.len() > 1);
 
-      for wi in 0..(u.W.len() - 1) {
+      for wi in 0..(u.comm_W.len() - 1) {
         let mut cc = E::ROCircuit::new(
           self.ro_consts.clone(), // TODO?
-          4,
         );
 
         cc.absorb(&C_i.as_ref().unwrap()[wi]);
 
-        cc.absorb(&u.W[wi].x);
-        cc.absorb(&u.W[wi].y);
-        cc.absorb(&u.W[wi].is_infinity);
+        cc.absorb(&u.comm_W[wi].x);
+        cc.absorb(&u.comm_W[wi].y);
+        cc.absorb(&u.comm_W[wi].is_infinity);
 
         let cc_hash_bits = cc.squeeze(cs.namespace(|| "cc output hash bits"), NUM_HASH_BITS)?;
         let hash_num = le_bits_to_num(cs.namespace(|| "cc convert hash to num"), &cc_hash_bits)?;
@@ -505,22 +498,22 @@ mod tests {
     let ro_consts1 = ROConstantsCircuit::<E2>::default();
     let ro_consts2 = ROConstantsCircuit::<E1>::default();
 
-    let tc1 = TrivialCircuit::default();
+    let mut tc1 = TrivialCircuit::default();
     // Initialize the shape and ck for the primary
     let circuit1: NovaAugmentedCircuit<'_, E2, TrivialCircuit<<E2 as Engine>::Base>> =
-      NovaAugmentedCircuit::new(true, None, &tc1, ro_consts1.clone());
+      NovaAugmentedCircuit::new(true, None, &mut tc1, ro_consts1.clone(), 1, vec![]);
     let mut cs: TestShapeCS<E1> = TestShapeCS::new();
     let _ = circuit1.synthesize(&mut cs);
-    let (shape1, ck1) = cs.r1cs_shape(&*default_ck_hint(), false, vec![]);
+    let (shape1, ck1) = cs.r1cs_shape(&*default_ck_hint(), vec![]);
     assert_eq!(cs.num_constraints(), num_constraints_primary);
 
     let mut tc2 = TrivialCircuit::default();
     // Initialize the shape and ck for the secondary
     let circuit2: NovaAugmentedCircuit<'_, E1, TrivialCircuit<<E1 as Engine>::Base>> =
-      NovaAugmentedCircuit::new(false, None, &tc2, ro_consts2.clone());
+      NovaAugmentedCircuit::new(false, None, &mut tc2, ro_consts2.clone(), 1, vec![]);
     let mut cs: TestShapeCS<E2> = TestShapeCS::new();
     let _ = circuit2.synthesize(&mut cs);
-    let (shape2, ck2) = cs.r1cs_shape(&*default_ck_hint(), false, vec![]);
+    let (shape2, ck2) = cs.r1cs_shape(&*default_ck_hint(), vec![]);
     assert_eq!(cs.num_constraints(), num_constraints_secondary);
 
     // Execute the base case for the primary
@@ -534,8 +527,6 @@ mod tests {
       None,
       None,
       None,
-      ri_1,
-      None,
       None,
       None,
       ri_1,
@@ -543,7 +534,7 @@ mod tests {
       None,
     );
     let circuit1: NovaAugmentedCircuit<'_, E2, TrivialCircuit<<E2 as Engine>::Base>> =
-      NovaAugmentedCircuit::new(true, Some(inputs1), &tc1, ro_consts1);
+      NovaAugmentedCircuit::new(true, Some(inputs1), &mut tc1, ro_consts1, 1, vec![]);
     let _ = circuit1.synthesize(&mut cs1);
     let (inst1, witness1) = cs1.r1cs_instance_and_witness(&shape1, &ck1, None).unwrap();
     // Make sure that this is satisfiable
@@ -560,12 +551,14 @@ mod tests {
       None,
       None,
       None,
+      None,
+      None,
       ri_2,
       Some(inst1),
       None,
     );
     let circuit2: NovaAugmentedCircuit<'_, E1, TrivialCircuit<<E1 as Engine>::Base>> =
-      NovaAugmentedCircuit::new(false, Some(inputs2), &tc2, ro_consts2);
+      NovaAugmentedCircuit::new(false, Some(inputs2), &mut tc2, ro_consts2, 1, vec![]);
     let _ = circuit2.synthesize(&mut cs2);
     let (inst2, witness2) = cs2.r1cs_instance_and_witness(&shape2, &ck2, None).unwrap();
     // Make sure that it is satisfiable

@@ -208,7 +208,7 @@ impl<E: Engine> R1CSShape<E> {
       let (comm_W, comm_E) = W.commit(ck);
       U.comm_W
         .par_iter()
-        .zip(comm_W.iter())
+        .zip(comm_W.par_iter())
         .all(|(com, check)| *com == *check)
         && U.comm_E == comm_E
     };
@@ -492,8 +492,31 @@ impl<E: Engine> R1CSShape<E> {
 
     // JESS TODO okay?
     // compute commitments to W,E in parallel
+    let mut pad_lens = vec![(0, 0); W.len()];
+    for (i, w) in W.iter().enumerate() {
+      for j in 0..pad_lens.len() {
+        if i < j {
+          pad_lens[j].0 += w.len();
+        } else if i > j {
+          pad_lens[j].1 += w.len();
+        }
+      }
+    }
+
     let (comm_W, comm_E) = rayon::join(
-      || CE::<E>::commit(ck, &Z[..self.num_vars], &r_W),
+      || {
+        W.par_iter()
+          .zip(r_W.par_iter())
+          .zip(pad_lens.par_iter())
+          .map(|((w, blind), (start_zeros, end_zeros))| {
+            let mut padded_w = vec![E::Scalar::ZERO; *start_zeros];
+            padded_w.extend(w.clone());
+            padded_w.extend(vec![E::Scalar::ZERO; *end_zeros]);
+
+            CE::<E>::commit(ck, &padded_w, blind)
+          })
+          .collect()
+      },
       || CE::<E>::commit(ck, &E, &r_E),
     );
 
@@ -505,7 +528,7 @@ impl<E: Engine> R1CSShape<E> {
         X, //Z[self.num_vars + 1..].to_vec(),
       },
       RelaxedR1CSWitness {
-        W: Z[..self.num_vars].to_vec(),
+        W, //: Z[..self.num_vars].to_vec(),
         r_W,
         E,
         r_E,
@@ -563,14 +586,6 @@ impl<E: Engine> R1CSWitness<E> {
       })
       .collect()
   }
-
-  /// Pads the provided witness to the correct length
-  pub fn pad(&self, S: &R1CSShape<E>) -> R1CSWitness<E> {
-    let mut W = self.W.clone();
-    W.extend(vec![E::Scalar::ZERO; S.num_vars - W.len()]);
-
-    Self { W, r_W: self.r_W }
-  }
 }
 
 impl<E: Engine> R1CSInstance<E> {
@@ -606,7 +621,7 @@ impl<E: Engine> AbsorbInROTrait<E> for R1CSInstance<E> {
 impl<E: Engine> AbsorbInRO2Trait<E> for R1CSInstance<E> {
   fn absorb_in_ro2(&self, ro: &mut E::RO2) {
     // we have to absorb the commitment to W in RO2
-    self.comm_W.absorb_in_ro2(ro);
+    self.comm_W.iter().for_each(|w| w.absorb_in_ro2(ro));
 
     for x in &self.X {
       ro.absorb(*x);

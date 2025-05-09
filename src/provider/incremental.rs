@@ -1,15 +1,16 @@
 //! This module provides an incremental commitment scheme
 use crate::{
+  constants::NUM_HASH_BITS,
+  gadgets::utils::scalar_as_base,
   provider::{
     pedersen::CommitmentKeyExtTrait, poseidon::PoseidonConstantsCircuit, traits::DlogGroup,
     PoseidonRO,
   },
-  scalar_as_base,
   traits::{
-    commitment::{CommitmentEngineTrait, CommitmentTrait, GetGeneratorsTrait},
-    ROCircuitTrait, ROTrait,
+    commitment::{CommitmentEngineTrait, CommitmentTrait},
+    ROCircuitTrait, ROConstants, ROTrait,
   },
-  Commitment, CommitmentKey, Engine, ROConstants, NUM_HASH_BITS,
+  Commitment, CommitmentKey, Engine,
 };
 use ff::Field;
 use rand_core::OsRng;
@@ -47,7 +48,7 @@ where
 
   /// commit incrementally to chunk of list
   pub fn commit(&self, c_i: Option<E2::Scalar>, w: &[E1::Scalar]) -> (E2::Scalar, E1::Scalar) {
-    let mut cc = E1::RO::new(self.pos_constants.clone(), 4);
+    let mut cc = E1::RO::new(self.pos_constants.clone());
 
     if c_i.is_none() {
       cc.absorb(E2::Scalar::ZERO);
@@ -75,6 +76,7 @@ where
     let cc_hash = cc.squeeze(NUM_HASH_BITS);
     //println!("hash in clear {:#?}", scalar_as_base::<E1>(cc_hash));
 
-    (scalar_as_base::<E1>(cc_hash), blind)
+    (cc_hash, blind)
+    // (scalar_as_base::<E1>(cc_hash), blind)
   }
 }
