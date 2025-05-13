@@ -33,6 +33,7 @@ use num_traits::ToPrimitive;
 use rand_core::OsRng;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::io::BufReader;
 
 /// Alias to points on G1 that are in preprocessed form
 type G1Affine<E> = <<E as Engine>::GE as DlogGroup>::AffineGroupElement;
@@ -457,7 +458,13 @@ where
 
   fn setup(label: &'static [u8], n: usize) -> Self::CommitmentKey {
     // NOTE: this is for testing purposes and should not be used in production
-    Self::CommitmentKey::setup_from_rng(label, n, OsRng)
+    // Self::CommitmentKey::setup_from_rng(label, n, OsRng)
+
+    // from ppot file
+    let mut reader = BufReader::new(std::fs::File::open("./ppot_0080_13.ptau").unwrap());
+
+    let ck: CommitmentKey<E> = CommitmentEngine::load_setup(&mut reader, b"test", n).unwrap();
+    ck
   }
 
   fn derand_key(ck: &Self::CommitmentKey) -> Self::DerandKey {

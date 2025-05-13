@@ -36,7 +36,8 @@ where
   E2: Engine<Base = <E1 as Engine>::Scalar>,
 {
   /// setup
-  pub fn setup(kzg_gen: CommitmentKey<E1>) -> Self {
+  pub fn setup(key_len: usize) -> Self {
+    let kzg_gen = E1::CE::setup(b"ck", key_len);
     let pos_constants: ROConstants<E1> = ROConstants::<E1>::default();
 
     Incremental::<E1, E2> {

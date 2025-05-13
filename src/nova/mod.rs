@@ -699,6 +699,7 @@ where
   snark_secondary: S2,
 
   zn: Vec<E1::Scalar>,
+  Ci: Vec<E2::Scalar>,
 
   _p: PhantomData<C>,
 }
@@ -853,6 +854,7 @@ where
       snark_secondary: snark_secondary?,
 
       zn: recursive_snark.zi.clone(),
+      Ci: recursive_snark.Ci.clone(),
 
       _p: Default::default(),
     })
@@ -864,7 +866,7 @@ where
     vk: &VerifierKey<E1, E2, C, S1, S2>,
     num_steps: usize,
     z0: &[E1::Scalar],
-  ) -> Result<Vec<E1::Scalar>, NovaError> {
+  ) -> Result<(Vec<E1::Scalar>, Vec<E2::Scalar>), NovaError> {
     // the number of steps cannot be zero
     if num_steps == 0 {
       return Err(NovaError::ProofVerifyError {
@@ -974,7 +976,7 @@ where
     res_primary?;
     res_secondary?;
 
-    Ok(self.zn.clone())
+    Ok((self.zn.clone(), self.Ci.clone()))
   }
 }
 
