@@ -58,7 +58,7 @@ where
     }
 
     let blind = E1::Scalar::random(&mut OsRng);
-    //println!("committing to {:#?} with blind {:#?}", w, blind);
+    println!("committing to {:#?} with blind {:#?}", w, blind);
     let kzg_cmt = E1::CE::commit(&self.kzg_gen, w, &blind);
 
     //println!("cmt in clear {:#?}", kzg_cmt);

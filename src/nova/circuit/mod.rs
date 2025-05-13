@@ -157,7 +157,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
 
     // Allocated Ci (only if split)
     let zero = vec![E::Base::ZERO; self.num_split_witnesses - 1];
-    let C_i = if self.ram_batch_sizes.len() > 0 {
+    let C_i = if self.num_split_witnesses > 1 {
       Some(
         (0..(self.num_split_witnesses - 1))
           .map(|i| {
@@ -238,7 +238,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     for e in z_i {
       ro.absorb(e);
     }
-    if self.ram_batch_sizes.len() > 0 {
+    if self.num_split_witnesses > 1 {
       for c in C_next.as_ref().unwrap() {
         ro.absorb(c);
       }
@@ -424,9 +424,9 @@ impl<E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'_, E, SC> {
     }
 
     // Accumulate Commitments
-    let C_next = if self.ram_batch_sizes.len() > 0 {
+    let C_next = if self.num_split_witnesses > 1 {
       let mut cmts = Vec::new();
-      // assert!(!self.params.is_primary_circuit);
+      assert!(!self.is_primary_circuit);
       assert!(u.comm_W.len() > 1);
 
       for wi in 0..(u.comm_W.len() - 1) {

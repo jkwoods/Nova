@@ -461,7 +461,7 @@ where
     // Self::CommitmentKey::setup_from_rng(label, n, OsRng)
 
     // from ppot file
-    let mut reader = BufReader::new(std::fs::File::open("./ppot_0080_13.ptau").unwrap());
+    let mut reader = BufReader::new(std::fs::File::open("./ppot_0080_20.ptau").unwrap());
 
     let ck: CommitmentKey<E> = CommitmentEngine::load_setup(&mut reader, b"test", n).unwrap();
     ck
@@ -472,6 +472,7 @@ where
   }
 
   fn commit(ck: &Self::CommitmentKey, v: &[E::Scalar], r: &E::Scalar) -> Self::Commitment {
+    println!("CK len {:#?}, V len {:#?}", ck.ck.len(), v.len());
     assert!(ck.ck.len() >= v.len());
 
     Commitment {
