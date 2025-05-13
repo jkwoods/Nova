@@ -62,7 +62,7 @@ pub trait RelaxedR1CSSNARKTrait<E: Engine>:
     ck: &CommitmentKey<E>,
     pk: &Self::ProverKey,
     U: &RelaxedR1CSInstance<E>,
-    W: &RelaxedR1CSWitness<E>,
+    W: RelaxedR1CSWitness<E>,
     transcript: &mut E::TE,
   ) -> Result<
     (

@@ -84,7 +84,7 @@ pub struct UnsplitProof<E: Engine> {
   comm_W: Commitment<E>,
   w_lens: Vec<usize>,
   u_vec: Vec<PolyEvalInstance<E>>,
-  sc_proof_batch: Option<SumcheckProof<E>>,
+  sc_proof_batch: SumcheckProof<E>,
 }
 
 /// A succinct proof of knowledge of a witness to a relaxed R1CS instance
@@ -142,19 +142,19 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
 
     let W = W.pad(&S); // pad the witness
 
-    println!(
+    /*println!(
       "PROVING SHAPE {:#?}, {:#?}, WIT {:#?}",
       S.num_vars,
       S.num_split_vars.clone(),
       W.W.len()
-    );
+    );*/
 
     let mut transcript = E::TE::new(b"RelaxedR1CSSNARK");
     transcript.absorb(b"split U", U);
 
     // unsplit
     let (U, mut W, unsplit_proof, unsplit_claim_w) = if S.num_split_vars.len() > 1 {
-      let (U, mut W, p, p_w_vec) = Self::prove_unsplit_witnesses(ck, pk, U, &W, &mut transcript)?;
+      let (U, mut W, p, p_w_vec) = Self::prove_unsplit_witnesses(ck, pk, U, W, &mut transcript)?;
       (U, W, Some(p), Some(p_w_vec))
     } else {
       (U.clone(), W, None, None)
@@ -459,10 +459,10 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
       &self.evals_batch,
     )?;
 
-    println!(
+    /*println!(
       "BATCHED size {:#?}",
       (2_usize).pow(batched_u.x.len() as u32)
-    );
+    );*/
 
     // verify
     EE::verify(
@@ -481,7 +481,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     ck: &CommitmentKey<E>,
     pk: &Self::ProverKey,
     U: &RelaxedR1CSInstance<E>,
-    W: &RelaxedR1CSWitness<E>,
+    mut W: RelaxedR1CSWitness<E>,
     transcript: &mut E::TE,
   ) -> Result<
     (
@@ -494,87 +494,85 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
   > {
     let wits: Vec<E::Scalar> = W.W.iter().flatten().cloned().collect();
     let comm_W = CE::<E>::commit(ck, &wits, &E::Scalar::ZERO);
-    /*
-        let num_claims = W.W.len();
-        let num_rounds: Vec<usize> = W
-          .W
-          .iter()
-          .map(|w| usize::try_from(w.len().ilog2()).unwrap())
-          .collect(); // + 1 ?
+    let num_claims = W.W.len();
 
-        let claims = vec![E::Scalar::ZERO; num_claims];
-
-        let mut selector_evals: Vec<Vec<E::Scalar>> = vec![Vec::new()];
-
-        // selector poly evals
-        for (i, w) in W.W.iter().enumerate() {
-          for s in 0..selector_evals.len() {
-            if i == s {
-              selector_evals[i].extend(vec![E::Scalar::ONE; w.len()]);
-            } else {
-              selector_evals[i].extend(vec![E::Scalar::ZERO; w.len()]);
-            }
-          }
+    let mut split_wits: Vec<Vec<E::Scalar>> = vec![Vec::new(); num_claims];
+    let mut selector_evals: Vec<Vec<E::Scalar>> = vec![Vec::new(); num_claims];
+    for k in 0..num_claims {
+      for (j, w) in W.W.iter().enumerate() {
+        if j == k {
+          split_wits[k].extend(w);
+          selector_evals[k].extend(vec![E::Scalar::ZERO; w.len()]);
+        } else {
+          split_wits[k].extend(vec![E::Scalar::ZERO; w.len()]);
+          selector_evals[k].extend(vec![E::Scalar::ONE; w.len()]);
         }
+      }
+    }
 
-        let num_rounds_max = *num_rounds.iter().max().unwrap();
-        let tau = (0..num_rounds_max)
-          .map(|_i| transcript.squeeze(b"t"))
-          .collect::<Result<EqPolynomial<_>, NovaError>>()?;
+    let num_rounds: Vec<usize> = split_wits
+      .iter()
+      .map(|w| usize::try_from(w.len().ilog2()).unwrap())
+      .collect(); // + 1 ?
 
-        let poly_tau = MultilinearPolynomial::new(tau.evals());
-        // can be the same ... ?
-        let polys_eq = vec![poly_tau; W.W.len()];
+    let claims = vec![E::Scalar::ZERO; num_claims];
 
-        // generate a challenge, and powers of it for random linear combination
-        let rho = transcript.squeeze(b"r")?;
-        let powers_of_rho = powers::<E>(&rho, num_claims);
+    let num_rounds_max = *num_rounds.iter().max().unwrap();
+    let tau = (0..num_rounds_max)
+      .map(|_i| transcript.squeeze(b"t"))
+      .collect::<Result<EqPolynomial<_>, NovaError>>()?;
 
-        // make into ML polys
-        let polys_w: Vec<MultilinearPolynomial<E::Scalar>> = W
-          .W
-          .iter()
-          .map(|e| MultilinearPolynomial::new(e.clone()))
-          .collect();
-        let polys_sel: Vec<MultilinearPolynomial<E::Scalar>> = selector_evals
-          .iter()
-          .map(|e| MultilinearPolynomial::new(e.clone()))
-          .collect();
+    let poly_tau = MultilinearPolynomial::new(tau.evals());
+    // can be the same ... ?
+    let polys_eq = vec![poly_tau; num_claims];
 
-        let comb_func = |poly_wit: &E::Scalar,
-                         poly_sel: &E::Scalar,
-                         poly_eq: &E::Scalar|
-         -> E::Scalar { *poly_wit * *poly_sel * *poly_eq };
+    // generate a challenge, and powers of it for random linear combination
+    let rho = transcript.squeeze(b"r")?;
+    let powers_of_rho = powers::<E>(&rho, num_claims);
 
-        let (sc_proof_batch, r, claims_batch) = SumcheckProof::prove_cubic_batch(
-          &claims,
-          &num_rounds,
-          polys_w,
-          polys_sel,
-          polys_eq,
-          &powers_of_rho,
-          comb_func,
-          transcript,
-        )?;
+    // make into ML polys
+    let polys_w: Vec<MultilinearPolynomial<E::Scalar>> = split_wits
+      .iter()
+      .map(|e| MultilinearPolynomial::new(e.clone()))
+      .collect();
+    let polys_sel: Vec<MultilinearPolynomial<E::Scalar>> = selector_evals
+      .iter()
+      .map(|e| MultilinearPolynomial::new(e.clone()))
+      .collect();
 
-        // prove poly evals (batch with SNARK) - outside function
-        let w_vec = W
-          .W
-          .iter()
-          .map(|wv| PolyEvalWitness { p: wv.clone() })
-          .collect();
+    let comb_func = |poly_wit: &E::Scalar,
+                     poly_sel: &E::Scalar,
+                     poly_eq: &E::Scalar|
+     -> E::Scalar { *poly_wit * *poly_sel * *poly_eq };
 
-        let u_vec = U
-          .comm_W
-          .iter()
-          .zip(W.W.iter())
-          .map(|(&c, w)| PolyEvalInstance {
-            c: c,
-            x: r.clone(),
-            e: MultilinearPolynomial::evaluate_with(&w, &r),
-          })
-          .collect();
-    */
+    let (sc_proof_batch, r, claims_batch) = SumcheckProof::prove_cubic_batch(
+      &claims,
+      &num_rounds,
+      polys_w,
+      polys_sel,
+      polys_eq,
+      &powers_of_rho,
+      comb_func,
+      transcript,
+    )?;
+
+    // prove poly evals (batch with SNARK) - outside function
+    let w_vec = split_wits
+      .iter()
+      .map(|wv| PolyEvalWitness { p: wv.clone() })
+      .collect();
+
+    let u_vec = U
+      .comm_W
+      .iter()
+      .zip(split_wits.iter())
+      .map(|(&c, w)| PolyEvalInstance {
+        c: c,
+        x: r.clone(),
+        e: MultilinearPolynomial::evaluate_with(&w, &r),
+      })
+      .collect();
+
     Ok((
       RelaxedR1CSInstance {
         comm_W: vec![comm_W],
@@ -591,10 +589,10 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
       UnsplitProof {
         comm_W,
         w_lens: W.W.iter().map(|w| w.len()).collect(),
-        u_vec: vec![],        //TODO!
-        sc_proof_batch: None, // TODO!
+        u_vec,
+        sc_proof_batch,
       },
-      vec![], // TODO w_vec,
+      w_vec,
     ))
   }
 
@@ -609,54 +607,52 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     for i in 1..U.comm_W.len() {
       cmt_sum = cmt_sum + U.comm_W[i];
     }
-    /* assert_eq!(cmt_sum, p.comm_W);
+    assert_eq!(cmt_sum, p.comm_W);
 
-        // verify sum-check
-        let num_claims = U.comm_W.len();
+    // verify sum-check
+    let num_claims = U.comm_W.len();
 
-        let claims = vec![E::Scalar::ZERO; num_claims];
+    let claims = vec![E::Scalar::ZERO; num_claims];
 
-        let mut selector_evals: Vec<Vec<E::Scalar>> = vec![Vec::new()];
-
-        // selector poly evals
-        for (i, w_len) in p.w_lens.iter().enumerate() {
-          for s in 0..selector_evals.len() {
-            if i == s {
-              selector_evals[i].extend(vec![E::Scalar::ONE; *w_len]);
-            } else {
-              selector_evals[i].extend(vec![E::Scalar::ZERO; *w_len]);
-            }
-          }
+    let mut selector_evals: Vec<Vec<E::Scalar>> = vec![Vec::new(); num_claims];
+    for k in 0..num_claims {
+      for (j, w_len) in p.w_lens.iter().enumerate() {
+        if j == k {
+          selector_evals[k].extend(vec![E::Scalar::ZERO; *w_len]);
+        } else {
+          selector_evals[k].extend(vec![E::Scalar::ONE; *w_len]);
         }
-        let polys_sel: Vec<MultilinearPolynomial<E::Scalar>> = selector_evals
-          .iter()
-          .map(|e| MultilinearPolynomial::new(e.clone()))
-          .collect();
+      }
+    }
+    let polys_sel: Vec<MultilinearPolynomial<E::Scalar>> = selector_evals
+      .iter()
+      .map(|e| MultilinearPolynomial::new(e.clone()))
+      .collect();
 
-        // Compute nᵢ and n = maxᵢ{nᵢ}
-        let num_rounds = p.u_vec.iter().map(|u| u.x.len()).collect::<Vec<_>>();
-        let num_rounds_max = *num_rounds.iter().max().unwrap();
+    // Compute nᵢ and n = maxᵢ{nᵢ}
+    let num_rounds = p.u_vec.iter().map(|u| u.x.len()).collect::<Vec<_>>();
+    let num_rounds_max = *num_rounds.iter().max().unwrap();
 
-        // tau
-        let tau = (0..num_rounds_max)
-          .map(|_i| transcript.squeeze(b"t"))
-          .collect::<Result<EqPolynomial<_>, NovaError>>()?;
-        let poly_tau = MultilinearPolynomial::new(tau.evals());
-        // can be the same ... ?
-        let polys_eq = vec![poly_tau; U.comm_W.len()];
+    // tau
+    let tau = (0..num_rounds_max)
+      .map(|_i| transcript.squeeze(b"t"))
+      .collect::<Result<EqPolynomial<_>, NovaError>>()?;
+    let poly_tau = MultilinearPolynomial::new(tau.evals());
+    // can be the same ... ?
+    let polys_eq = vec![poly_tau; U.comm_W.len()];
 
-        // generate a challenge
-        let rho = transcript.squeeze(b"r")?;
-        let powers_of_rho = powers::<E>(&rho, num_claims);
+    // generate a challenge
+    let rho = transcript.squeeze(b"r")?;
+    let powers_of_rho = powers::<E>(&rho, num_claims);
 
-        let (claim_final, r) =
-          p.sc_proof_batch
-            .verify_batch(&claims, &num_rounds, &powers_of_rho, 3, transcript)?;
+    let (claim_final, r) =
+      p.sc_proof_batch
+        .verify_batch(&claims, &num_rounds, &powers_of_rho, 3, transcript)?;
 
-        // verify the eq and sel polys
+    // verify the eq and sel polys
 
-        // evals verified as larger part of SNARK batch verification
-    */
+    // evals verified as larger part of SNARK batch verification
+
     Ok(RelaxedR1CSInstance {
       comm_W: vec![p.comm_W],
       comm_E: U.comm_E.clone(),
