@@ -331,7 +331,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
       U.clone()
     };
 
-    println!("Verified unsplit snark");
+    //println!("Verified unsplit snark");
 
     let (num_rounds_x, num_rounds_y) = (
       usize::try_from(vk.S.num_cons.ilog2()).unwrap(),

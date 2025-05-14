@@ -127,11 +127,6 @@ where
     let ro_consts_secondary: ROConstants<E2> = ROConstants::<E2>::default();
 
     let F_arity = c.arity() - ram_batch_sizes.iter().sum::<usize>();
-    println!(
-      "ram batch size total len {:#?}, final arity {:#?}",
-      ram_batch_sizes.iter().sum::<usize>(),
-      F_arity
-    );
 
     // ro_consts_circuit_primary are parameterized by E2 because the type alias uses E2::Base = E1::Scalar
     let ro_consts_circuit_primary: ROConstantsCircuit<E2> = ROConstantsCircuit::<E2>::default();

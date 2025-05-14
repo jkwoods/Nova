@@ -472,7 +472,6 @@ where
   }
 
   fn commit(ck: &Self::CommitmentKey, v: &[E::Scalar], r: &E::Scalar) -> Self::Commitment {
-    println!("CK len {:#?}, V len {:#?}", ck.ck.len(), v.len());
     assert!(ck.ck.len() >= v.len());
 
     Commitment {
