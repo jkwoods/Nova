@@ -150,6 +150,8 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     );*/
 
     let mut transcript = E::TE::new(b"RelaxedR1CSSNARK");
+    // append the digest of vk (which includes R1CS matrices) and the RelaxedR1CSInstance to the transcript
+    transcript.absorb(b"vk", &pk.vk_digest);
     transcript.absorb(b"split U", U);
 
     // unsplit
@@ -161,10 +163,6 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     };
 
     assert!(S.is_regular_shape());
-
-    // append the digest of vk (which includes R1CS matrices) and the RelaxedR1CSInstance to the transcript
-    transcript.absorb(b"vk", &pk.vk_digest);
-    transcript.absorb(b"U", &U);
 
     // compute the full satisfying assignment by concatenating W.W, U.u, and U.X
     let mut z = [W.W[0].clone(), vec![U.u], U.X.clone()].concat();
@@ -323,6 +321,8 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     // unsplit
 
     let mut transcript = E::TE::new(b"RelaxedR1CSSNARK");
+    // append the digest of R1CS matrices and the RelaxedR1CSInstance to the transcript
+    transcript.absorb(b"vk", &vk.digest());
     transcript.absorb(b"split U", U);
 
     let U = if vk.S.num_split_vars.len() > 1 {
@@ -332,10 +332,6 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     };
 
     println!("Verified unsplit snark");
-
-    // append the digest of R1CS matrices and the RelaxedR1CSInstance to the transcript
-    transcript.absorb(b"vk", &vk.digest());
-    transcript.absorb(b"U", &U);
 
     let (num_rounds_x, num_rounds_y) = (
       usize::try_from(vk.S.num_cons.ilog2()).unwrap(),
@@ -494,6 +490,8 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
   > {
     let wits: Vec<E::Scalar> = W.W.iter().flatten().cloned().collect();
     let comm_W = CE::<E>::commit(ck, &wits, &E::Scalar::ZERO);
+    transcript.absorb(b"new cmt", &comm_W);
+
     let num_claims = W.W.len();
 
     let mut split_wits: Vec<Vec<E::Scalar>> = vec![Vec::new(); num_claims];
@@ -602,12 +600,18 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     U: &RelaxedR1CSInstance<E>,
     transcript: &mut E::TE,
   ) -> Result<RelaxedR1CSInstance<E>, NovaError> {
+    transcript.absorb(b"new cmt", &p.comm_W);
+
     // sum(small cmts) == big cmt?
     let mut cmt_sum = U.comm_W[0];
     for i in 1..U.comm_W.len() {
       cmt_sum = cmt_sum + U.comm_W[i];
     }
-    assert_eq!(cmt_sum, p.comm_W);
+    // TODO MAKE REAL ERROR
+    //assert_eq!(cmt_sum, p.comm_W);
+    if cmt_sum != p.comm_W {
+      return Err(NovaError::UnsplitError);
+    }
 
     // verify sum-check
     let num_claims = U.comm_W.len();
@@ -637,9 +641,9 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     let tau = (0..num_rounds_max)
       .map(|_i| transcript.squeeze(b"t"))
       .collect::<Result<EqPolynomial<_>, NovaError>>()?;
-    let poly_tau = MultilinearPolynomial::new(tau.evals());
+    //let poly_tau = MultilinearPolynomial::new(tau.evals());
     // can be the same ... ?
-    let polys_eq = vec![poly_tau; U.comm_W.len()];
+    //let polys_eq = vec![poly_tau; U.comm_W.len()];
 
     // generate a challenge
     let rho = transcript.squeeze(b"r")?;
@@ -650,6 +654,18 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
         .verify_batch(&claims, &num_rounds, &powers_of_rho, 3, transcript)?;
 
     // verify the eq and sel polys
+    let mut claim_final_expected = E::Scalar::ZERO;
+    for b in 0..num_claims {
+      let taus_bound_r = tau.evaluate(&r);
+      let sel_bound_r = polys_sel[b].evaluate(&r);
+
+      claim_final_expected += (p.u_vec[b].e * sel_bound_r * taus_bound_r * powers_of_rho[b]);
+    }
+
+    //assert_eq!(claim_final, claim_final_expected);
+    if claim_final != claim_final_expected {
+      return Err(NovaError::UnsplitError);
+    }
 
     // evals verified as larger part of SNARK batch verification
 
