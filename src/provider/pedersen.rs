@@ -233,6 +233,20 @@ where
     }
   }
 
+  fn commit_chunk(
+    ck: &Self::CommitmentKey,
+    v: &[E::Scalar],
+    r: &E::Scalar,
+    offset: usize,
+  ) -> Self::Commitment {
+    assert!(ck.ck.len() >= v.len() + offset);
+
+    Commitment {
+      comm: E::GE::vartime_multiscalar_mul(v, &ck.ck[offset..(offset + v.len())])
+        + <E::GE as DlogGroup>::group(&ck.h) * r,
+    }
+  }
+
   fn commit_small<T: Integer + Into<u64> + Copy + Sync + ToPrimitive>(
     ck: &Self::CommitmentKey,
     v: &[T],

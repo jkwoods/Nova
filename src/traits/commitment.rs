@@ -76,6 +76,14 @@ pub trait CommitmentEngineTrait<E: Engine>: Clone + Send + Sync {
   /// Commits to the provided vector using the provided generators and random blind
   fn commit(ck: &Self::CommitmentKey, v: &[E::Scalar], r: &E::Scalar) -> Self::Commitment;
 
+  /// Commits to the provided vector using the provided generators with offset and random blind
+  fn commit_chunk(
+    ck: &Self::CommitmentKey,
+    v: &[E::Scalar],
+    r: &E::Scalar,
+    offset: usize,
+  ) -> Self::Commitment;
+
   /// Batch commits to the provided vectors using the provided generators and random blind
   fn batch_commit(
     ck: &Self::CommitmentKey,

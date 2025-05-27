@@ -480,6 +480,20 @@ where
     }
   }
 
+  fn commit_chunk(
+    ck: &Self::CommitmentKey,
+    v: &[E::Scalar],
+    r: &E::Scalar,
+    offset: usize,
+  ) -> Self::Commitment {
+    assert!(ck.ck.len() >= v.len() + offset);
+
+    Commitment {
+      comm: E::GE::vartime_multiscalar_mul(v, &ck.ck[offset..(v.len() + offset)])
+        + <E::GE as DlogGroup>::group(&ck.h) * r,
+    }
+  }
+
   fn batch_commit(
     ck: &Self::CommitmentKey,
     v: &[Vec<<E as Engine>::Scalar>],
@@ -1148,7 +1162,7 @@ mod tests {
     }
   }
 
-  //#[ignore = "only available with external ptau files"]
+  #[ignore = "only available with external ptau files"]
   #[test]
   fn test_hyperkzg_large_from_file() {
     // test the hyperkzg prover and verifier with random instances (derived from a seed)
@@ -1242,7 +1256,7 @@ mod tests {
     }
   }
 
-  //#[ignore = "only available with external ptau files"]
+  #[ignore = "only available with external ptau files"]
   #[test]
   fn test_load_ptau() {
     let filename = "./tmp/ppot_0080_13.ptau";

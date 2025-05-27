@@ -490,15 +490,12 @@ impl<E: Engine> R1CSShape<E> {
       .map(|((az, bz), cz)| *az * *bz - u * *cz)
       .collect::<Vec<E::Scalar>>();
 
-    // JESS TODO okay?
     // compute commitments to W,E in parallel
-    let mut pad_lens = vec![(0, 0); W.len()];
+    let mut offsets = vec![0; W.len()];
     for (i, w) in W.iter().enumerate() {
-      for j in 0..pad_lens.len() {
+      for j in 0..W.len() {
         if i < j {
-          pad_lens[j].0 += w.len();
-        } else if i > j {
-          pad_lens[j].1 += w.len();
+          offsets[j] += w.len();
         }
       }
     }
@@ -507,14 +504,8 @@ impl<E: Engine> R1CSShape<E> {
       || {
         W.par_iter()
           .zip(r_W.par_iter())
-          .zip(pad_lens.par_iter())
-          .map(|((w, blind), (start_zeros, end_zeros))| {
-            let mut padded_w = vec![E::Scalar::ZERO; *start_zeros];
-            padded_w.extend(w.clone());
-            padded_w.extend(vec![E::Scalar::ZERO; *end_zeros]);
-
-            CE::<E>::commit(ck, &padded_w, blind)
-          })
+          .zip(offsets.par_iter())
+          .map(|((w, blind), offset)| CE::<E>::commit_chunk(ck, &w, blind, *offset))
           .collect()
       },
       || CE::<E>::commit(ck, &E, &r_E),
@@ -561,13 +552,11 @@ impl<E: Engine> R1CSWitness<E> {
 
   /// Commits to the witness using the supplied generators
   pub fn commit(&self, ck: &CommitmentKey<E>) -> Vec<Commitment<E>> {
-    let mut pad_lens = vec![(0, 0); self.W.len()];
+    let mut offsets = vec![0; self.W.len()];
     for (i, w) in self.W.iter().enumerate() {
-      for j in 0..pad_lens.len() {
+      for j in 0..self.W.len() {
         if i < j {
-          pad_lens[j].0 += w.len();
-        } else if i > j {
-          pad_lens[j].1 += w.len();
+          offsets[j] += w.len();
         }
       }
     }
@@ -576,14 +565,8 @@ impl<E: Engine> R1CSWitness<E> {
       .W
       .par_iter()
       .zip(self.r_W.par_iter())
-      .zip(pad_lens.par_iter())
-      .map(|((w, blind), (start_zeros, end_zeros))| {
-        let mut padded_w = vec![E::Scalar::ZERO; *start_zeros];
-        padded_w.extend(w.clone());
-        padded_w.extend(vec![E::Scalar::ZERO; *end_zeros]);
-
-        CE::<E>::commit(ck, &padded_w, blind)
-      })
+      .zip(offsets.par_iter())
+      .map(|((w, blind), offset)| CE::<E>::commit_chunk(ck, &w, blind, *offset))
       .collect()
   }
 }
@@ -657,32 +640,26 @@ impl<E: Engine> RelaxedR1CSWitness<E> {
 
   /// Commits to the witness using the supplied generators
   pub fn commit(&self, ck: &CommitmentKey<E>) -> (Vec<Commitment<E>>, Commitment<E>) {
-    let mut pad_lens = vec![(0, 0); self.W.len()];
+    let mut offsets = vec![0; self.W.len()];
     for (i, w) in self.W.iter().enumerate() {
-      for j in 0..pad_lens.len() {
+      for j in 0..self.W.len() {
         if i < j {
-          pad_lens[j].0 += w.len();
-        } else if i > j {
-          pad_lens[j].1 += w.len();
+          offsets[j] += w.len();
         }
       }
     }
 
-    (
-      self
-        .W
-        .par_iter()
-        .zip(self.r_W.par_iter())
-        .zip(pad_lens.par_iter())
-        .map(|((w, blind), (start_zeros, end_zeros))| {
-          let mut padded_w = vec![E::Scalar::ZERO; *start_zeros];
-          padded_w.extend(w.clone());
-          padded_w.extend(vec![E::Scalar::ZERO; *end_zeros]);
-
-          CE::<E>::commit(ck, &padded_w, blind)
-        })
-        .collect(),
-      CE::<E>::commit(ck, &self.E, &self.r_E),
+    rayon::join(
+      || {
+        self
+          .W
+          .par_iter()
+          .zip(self.r_W.par_iter())
+          .zip(offsets.par_iter())
+          .map(|((w, blind), offset)| CE::<E>::commit_chunk(ck, &w, blind, *offset))
+          .collect()
+      },
+      || CE::<E>::commit(ck, &self.E, &self.r_E),
     )
   }
 
