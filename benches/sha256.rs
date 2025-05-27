@@ -41,7 +41,7 @@ impl<Scalar: PrimeField + PrimeFieldBits> StepCircuit<Scalar> for Sha256Circuit<
   }
 
   fn synthesize<CS: ConstraintSystem<Scalar>>(
-    &self,
+    &mut self,
     cs: &mut CS,
     _z: &[AllocatedNum<Scalar>],
   ) -> Result<Vec<AllocatedNum<Scalar>>, SynthesisError> {
@@ -127,7 +127,7 @@ criterion_main!(recursive_snark);
 
 fn bench_recursive_snark(c: &mut Criterion) {
   // Test vectors
-  let circuits = vec![
+  let mut circuits = vec![
     Sha256Circuit::new(vec![0u8; 1 << 6]),
     Sha256Circuit::new(vec![0u8; 1 << 7]),
     Sha256Circuit::new(vec![0u8; 1 << 8]),
@@ -141,7 +141,7 @@ fn bench_recursive_snark(c: &mut Criterion) {
     Sha256Circuit::new(vec![0u8; 1 << 16]),
   ];
 
-  for circuit in circuits {
+  for mut circuit in circuits {
     let mut group = c.benchmark_group(format!(
       "NovaProve-Sha256-message-len-{}",
       circuit.preimage.len()
@@ -149,18 +149,36 @@ fn bench_recursive_snark(c: &mut Criterion) {
     group.sample_size(10);
 
     // Produce public parameters
-    let pp =
-      PublicParams::<E1, E2, C>::setup(&circuit, &*default_ck_hint(), &*default_ck_hint()).unwrap();
+    let pp = PublicParams::<E1, E2, C>::setup(
+      &mut circuit,
+      &*default_ck_hint(),
+      &*default_ck_hint(),
+      vec![],
+    )
+    .unwrap();
 
     let z0 = vec![<E1 as Engine>::Scalar::from(2u64)];
     group.bench_function("Prove", |b| {
       b.iter(|| {
-        let mut recursive_snark =
-          RecursiveSNARK::new(black_box(&pp), black_box(&circuit), black_box(&z0)).unwrap();
+        let mut recursive_snark = RecursiveSNARK::new(
+          black_box(&pp),
+          black_box(&mut circuit),
+          black_box(&z0),
+          black_box(None),
+          black_box(vec![]),
+          black_box(vec![]),
+        )
+        .unwrap();
 
         // produce a recursive SNARK for a step of the recursion
         assert!(recursive_snark
-          .prove_step(black_box(&pp), black_box(&circuit))
+          .prove_step(
+            black_box(&pp),
+            black_box(&mut circuit),
+            black_box(None),
+            black_box(vec![]),
+            black_box(vec![])
+          )
           .is_ok());
       })
     });

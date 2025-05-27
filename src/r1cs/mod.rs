@@ -16,7 +16,8 @@ use crate::{
 use core::cmp::max;
 use ff::Field;
 use once_cell::sync::OnceCell;
-use rand_core::OsRng;
+use rand_chacha::{ChaCha20Core, ChaCha20Rng};
+use rand_core::{OsRng, RngCore, SeedableRng};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -454,28 +455,30 @@ impl<E: Engine> R1CSShape<E> {
     &self,
     ck: &CommitmentKey<E>,
   ) -> Result<(RelaxedR1CSInstance<E>, RelaxedR1CSWitness<E>), NovaError> {
+    let mut chachaRng = ChaCha20Rng::from_rng(OsRng).unwrap();
+
     // sample
     let mut W = Vec::new();
     for sub_num_vars in &self.num_split_vars {
       let mut sub_W = Vec::new();
       for _i in 0..*sub_num_vars {
-        sub_W.push(E::Scalar::random(&mut OsRng));
+        sub_W.push(E::Scalar::random(&mut chachaRng));
       }
       W.push(sub_W);
     }
 
     let mut X = Vec::new();
     for _i in 0..self.num_io {
-      X.push(E::Scalar::random(&mut OsRng));
+      X.push(E::Scalar::random(&mut chachaRng));
     }
 
-    let u = E::Scalar::random(&mut OsRng);
+    let u = E::Scalar::random(&mut chachaRng);
 
     let mut r_W = Vec::new();
     for _i in 0..self.num_split_vars.len() {
-      r_W.push(E::Scalar::random(&mut OsRng));
+      r_W.push(E::Scalar::random(&mut chachaRng));
     }
-    let r_E = E::Scalar::random(&mut OsRng);
+    let r_E = E::Scalar::random(&mut chachaRng);
 
     // Z
     let Z = [W.iter().flatten().cloned().collect(), vec![u], X.clone()].concat();

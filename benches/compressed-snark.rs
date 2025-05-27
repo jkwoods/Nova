@@ -16,7 +16,7 @@ type EE2 = nova_snark::provider::ipa_pc::EvaluationEngine<E2>;
 type S1 = nova_snark::spartan::snark::RelaxedR1CSSNARK<E1, EE1>;
 type S2 = nova_snark::spartan::snark::RelaxedR1CSSNARK<E2, EE2>;
 // SNARKs with computational commitments for the primary curve
-type SS1 = nova_snark::spartan::ppsnark::RelaxedR1CSSNARK<E1, EE1>;
+//type SS1 = nova_snark::spartan::ppsnark::RelaxedR1CSSNARK<E1, EE1>;
 type SS2 = nova_snark::spartan::snark::RelaxedR1CSSNARK<E2, EE2>;
 type C = NonTrivialCircuit<<E1 as Engine>::Scalar>;
 
@@ -29,13 +29,13 @@ cfg_if::cfg_if! {
     criterion_group! {
       name = compressed_snark;
       config = Criterion::default().warm_up_time(Duration::from_millis(3000)).with_profiler(pprof2::criterion::PProfProfiler::new(100, pprof2::criterion::Output::Flamegraph(None)));
-      targets = bench_compressed_snark, bench_compressed_snark_with_computational_commitments
+      targets = bench_compressed_snark, //bench_compressed_snark_with_computational_commitments
     }
   } else {
     criterion_group! {
       name = compressed_snark;
       config = Criterion::default().warm_up_time(Duration::from_millis(3000));
-      targets = bench_compressed_snark, bench_compressed_snark_with_computational_commitments,
+      targets = bench_compressed_snark, //bench_compressed_snark_with_computational_commitments,
     }
   }
 }
@@ -55,21 +55,29 @@ fn bench_compressed_snark_internal<S1: RelaxedR1CSSNARKTrait<E1>, S2: RelaxedR1C
   group: &mut BenchmarkGroup<'_, WallTime>,
   num_cons: usize,
 ) {
-  let c = NonTrivialCircuit::new(num_cons);
+  let mut c = NonTrivialCircuit::new(num_cons);
 
   // Produce public parameters
-  let pp = PublicParams::<E1, E2, C>::setup(&c, &*S1::ck_floor(), &*S2::ck_floor()).unwrap();
+  let pp =
+    PublicParams::<E1, E2, C>::setup(&mut c, &*S1::ck_floor(), &*S2::ck_floor(), vec![]).unwrap();
 
   // Produce prover and verifier keys for CompressedSNARK
   let (pk, vk) = CompressedSNARK::<_, _, _, S1, S2>::setup(&pp).unwrap();
 
   // produce a recursive SNARK
   let num_steps = 3;
-  let mut recursive_snark: RecursiveSNARK<E1, E2, C> =
-    RecursiveSNARK::new(&pp, &c, &[<E1 as Engine>::Scalar::from(2u64)]).unwrap();
+  let mut recursive_snark: RecursiveSNARK<E1, E2, C> = RecursiveSNARK::new(
+    &pp,
+    &mut c,
+    &[<E1 as Engine>::Scalar::from(2u64)],
+    None,
+    vec![],
+    vec![],
+  )
+  .unwrap();
 
   for i in 0..num_steps {
-    let res = recursive_snark.prove_step(&pp, &c);
+    let res = recursive_snark.prove_step(&pp, &mut c, None, vec![], vec![]);
     assert!(res.is_ok());
 
     // verify the recursive snark at each step of recursion
@@ -131,7 +139,7 @@ fn bench_compressed_snark(c: &mut Criterion) {
     group.finish();
   }
 }
-
+/*
 fn bench_compressed_snark_with_computational_commitments(c: &mut Criterion) {
   // we vary the number of constraints in the step circuit
   for &num_cons_in_augmented_circuit in [
@@ -158,4 +166,4 @@ fn bench_compressed_snark_with_computational_commitments(c: &mut Criterion) {
 
     group.finish();
   }
-}
+}*/

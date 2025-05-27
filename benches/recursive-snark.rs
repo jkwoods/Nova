@@ -58,22 +58,30 @@ fn bench_recursive_snark(c: &mut Criterion) {
     let mut group = c.benchmark_group(format!("RecursiveSNARK-StepCircuitSize-{num_cons}"));
     group.sample_size(NUM_SAMPLES);
 
-    let c = NonTrivialCircuit::new(num_cons);
+    let mut c = NonTrivialCircuit::new(num_cons);
 
     // Produce public parameters
     let pp =
-      PublicParams::<E1, E2, C>::setup(&c, &*default_ck_hint(), &*default_ck_hint()).unwrap();
+      PublicParams::<E1, E2, C>::setup(&mut c, &*default_ck_hint(), &*default_ck_hint(), vec![])
+        .unwrap();
 
     // Bench time to produce a recursive SNARK;
     // we execute a certain number of warm-up steps since executing
     // the first step is cheaper than other steps owing to the presence of
     // a lot of zeros in the satisfying assignment
     let num_warmup_steps = 10;
-    let mut recursive_snark: RecursiveSNARK<E1, E2, C> =
-      RecursiveSNARK::new(&pp, &c, &[<E1 as Engine>::Scalar::from(2u64)]).unwrap();
+    let mut recursive_snark: RecursiveSNARK<E1, E2, C> = RecursiveSNARK::new(
+      &pp,
+      &mut c,
+      &[<E1 as Engine>::Scalar::from(2u64)],
+      None,
+      vec![],
+      vec![],
+    )
+    .unwrap();
 
     for i in 0..num_warmup_steps {
-      let res = recursive_snark.prove_step(&pp, &c);
+      let res = recursive_snark.prove_step(&pp, &mut c, None, vec![], vec![]);
       assert!(res.is_ok());
 
       // verify the recursive snark at each step of recursion
@@ -85,7 +93,13 @@ fn bench_recursive_snark(c: &mut Criterion) {
       b.iter(|| {
         // produce a recursive SNARK for a step of the recursion
         assert!(black_box(&mut recursive_snark.clone())
-          .prove_step(black_box(&pp), black_box(&c))
+          .prove_step(
+            black_box(&pp),
+            black_box(&mut c),
+            black_box(None),
+            black_box(vec![]),
+            black_box(vec![])
+          )
           .is_ok());
       })
     });

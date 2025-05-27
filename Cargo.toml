@@ -59,9 +59,9 @@ harness = false
 name = "sha256"
 harness = false
 
-[[bench]]
-name = "ppsnark"
-harness = false
+#[[bench]]
+#name = "ppsnark"
+#harness = false
 
 [[bench]]
 name = "commit"
