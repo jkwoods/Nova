@@ -90,7 +90,10 @@ impl<E: Engine> R1CSShape<E> {
   ) -> Result<R1CSShape<E>, NovaError> {
     let num_vars = num_split_vars.iter().sum();
 
-    let is_valid = |M: &SparseMatrix<E::Scalar>| M.iter().all(|(row, col, _)| row <= num_cons && col < num_io + num_vars);
+    let is_valid = |M: &SparseMatrix<E::Scalar>| {
+      M.iter()
+        .all(|(row, col, _)| row <= num_cons && col < num_io + num_vars)
+    };
 
     if !is_valid(&A) && !is_valid(&B) && !is_valid(&C) {
       return Err(NovaError::InvalidIndex);
@@ -443,8 +446,12 @@ impl<E: Engine> R1CSShape<E> {
     ck: &CommitmentKey<E>,
   ) -> Result<(RelaxedR1CSInstance<E>, RelaxedR1CSWitness<E>), NovaError> {
     // sample
-    let batch_size =
+    let mut batch_size =
       max(*self.num_split_vars.iter().max().unwrap(), self.num_io) / rayon::current_num_threads();
+    if batch_size < 1 {
+      batch_size = 200;
+    }
+
     let stream_num: usize = (self.num_split_vars.iter().sum::<usize>() / batch_size);
 
     let (W, X) = rayon::join(
