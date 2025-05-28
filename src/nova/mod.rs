@@ -644,6 +644,10 @@ where
 {
   pk_primary: S1::ProverKey,
   pk_secondary: S2::ProverKey,
+  random_layer: (
+    (RelaxedR1CSInstance<E2>, RelaxedR1CSWitness<E2>),
+    (RelaxedR1CSInstance<E1>, RelaxedR1CSWitness<E1>),
+  ),
   _p: PhantomData<C>,
 }
 
@@ -726,6 +730,7 @@ where
       pk_primary,
       pk_secondary,
       _p: Default::default(),
+      random_layer: Self::sample_random_layer(&pp)?,
     };
 
     let vk = VerifierKey {
@@ -743,6 +748,29 @@ where
     Ok((pk, vk))
   }
 
+  fn sample_random_layer(
+    pp: &PublicParams<E1, E2, C>,
+  ) -> Result<
+    (
+      (RelaxedR1CSInstance<E2>, RelaxedR1CSWitness<E2>),
+      (RelaxedR1CSInstance<E1>, RelaxedR1CSWitness<E1>),
+    ),
+    NovaError,
+  > {
+    let (rand_sec_res, rand_prim_res) = rayon::join(
+      || {
+        pp.r1cs_shape_secondary
+          .sample_random_instance_witness(&pp.ck_secondary)
+      },
+      || {
+        pp.r1cs_shape_primary
+          .sample_random_instance_witness(&pp.ck_primary)
+      },
+    );
+
+    Ok((rand_sec_res?, rand_prim_res?))
+  }
+
   /// Create a new `CompressedSNARK` (provides zero-knowledge)
   pub fn prove(
     pp: &PublicParams<E1, E2, C>,
@@ -752,38 +780,28 @@ where
     // prove three foldings
 
     // fold secondary U/W with secondary u/w to get Uf/Wf + get random
-    let (Uf_res, (rand_sec_res, rand_prim_res)) = rayon::join(
+    let (nifs_Uf_secondary, (r_Uf_secondary, r_Wf_secondary)) = NIFS::prove(
+      &pp.ck_secondary,
+      &pp.ro_consts_secondary,
+      &scalar_as_base::<E1>(pp.digest()),
+      &pp.r1cs_shape_secondary,
+      &recursive_snark.r_U_secondary,
+      &recursive_snark.r_W_secondary,
+      &recursive_snark.l_u_secondary,
+      &recursive_snark.l_w_secondary,
+    )?;
+    /*rayon::join(
       || {
-        NIFS::prove(
-          &pp.ck_secondary,
-          &pp.ro_consts_secondary,
-          &scalar_as_base::<E1>(pp.digest()),
-          &pp.r1cs_shape_secondary,
-          &recursive_snark.r_U_secondary,
-          &recursive_snark.r_W_secondary,
-          &recursive_snark.l_u_secondary,
-          &recursive_snark.l_w_secondary,
-        )
+        pp.r1cs_shape_secondary
+          .sample_random_instance_witness(&pp.ck_secondary)
       },
       || {
-        rayon::join(
-          || {
-            pp.r1cs_shape_secondary
-              .sample_random_instance_witness(&pp.ck_secondary)
-          },
-          || {
-            pp.r1cs_shape_primary
-              .sample_random_instance_witness(&pp.ck_primary)
-          },
-        )
+        pp.r1cs_shape_primary
+          .sample_random_instance_witness(&pp.ck_primary)
       },
-    );
+    )*/
 
-    let (
-      (nifs_Uf_secondary, (r_Uf_secondary, r_Wf_secondary)),
-      (l_ur_secondary, l_wr_secondary),
-      (l_ur_primary, l_wr_primary),
-    ) = (Uf_res?, rand_sec_res?, rand_prim_res?);
+    let ((l_ur_secondary, l_wr_secondary), (l_ur_primary, l_wr_primary)) = &pk.random_layer;
 
     // fold Uf/Wf with random inst/wit to get U1/W1
     // fold primary U/W with random inst/wit to get U2/W2

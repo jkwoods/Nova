@@ -180,12 +180,11 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
     let mut poly_tau = MultilinearPolynomial::new(tau.evals());
     let (mut poly_Az, mut poly_Bz, poly_Cz, mut poly_uCz_E) = {
       let (poly_Az, poly_Bz, poly_Cz) = S.multiply_vec(&z)?;
-      let poly_uCz_E = 
-        poly_Cz
-          .par_iter()
-          .zip(&W.E)
-          .map(|(c, e)| U.u * c + e)
-          .collect::<Vec<E::Scalar>>();
+      let poly_uCz_E = poly_Cz
+        .par_iter()
+        .zip(&W.E)
+        .map(|(c, e)| U.u * c + e)
+        .collect::<Vec<E::Scalar>>();
       (
         MultilinearPolynomial::new(poly_Az),
         MultilinearPolynomial::new(poly_Bz),
@@ -538,7 +537,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
       .collect();
     let polys_sel: Vec<MultilinearPolynomial<E::Scalar>> = selector_evals
       .into_iter()
-      .map( MultilinearPolynomial::new)
+      .map(MultilinearPolynomial::new)
       .collect();
 
     let comb_func = |poly_wit: &E::Scalar,
