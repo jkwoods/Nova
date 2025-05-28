@@ -90,7 +90,10 @@ impl<E: Engine> R1CSShape<E> {
   ) -> Result<R1CSShape<E>, NovaError> {
     let num_vars = num_split_vars.iter().sum();
 
-    let is_valid = |M: &SparseMatrix<E::Scalar>| M.iter().all(|(row, col, _)| row <= num_cons && col < num_io + num_vars);
+    let is_valid = |M: &SparseMatrix<E::Scalar>| {
+      M.iter()
+        .all(|(row, col, _)| row <= num_cons && col < num_io + num_vars)
+    };
 
     if !is_valid(&A) && !is_valid(&B) && !is_valid(&C) {
       return Err(NovaError::InvalidIndex);
@@ -442,22 +445,104 @@ impl<E: Engine> R1CSShape<E> {
     &self,
     ck: &CommitmentKey<E>,
   ) -> Result<(RelaxedR1CSInstance<E>, RelaxedR1CSWitness<E>), NovaError> {
-    let mut chachaRng = ChaCha20Rng::from_rng(OsRng).unwrap();
-
     // sample
-    let mut W = Vec::new();
-    for sub_num_vars in &self.num_split_vars {
+    let mut batch_size =
+      max(*self.num_split_vars.iter().max().unwrap(), self.num_io) / rayon::current_num_threads();
+    if batch_size < 1 {
+      batch_size = 200;
+    }
+
+    let stream_num: usize = (self.num_split_vars.iter().sum::<usize>() / batch_size);
+
+    let (W, X) = rayon::join(
+      || {
+        self
+          .num_split_vars
+          .par_iter()
+          .enumerate()
+          .map(|(e1, i)| {
+            let chunks: Vec<Vec<usize>> = (0..((*i / batch_size) + 1))
+              .map(|a| {
+                if (a + 1) * batch_size > *i {
+                  (0..(*i - batch_size * (*i / batch_size))).collect()
+                } else {
+                  (0..batch_size).collect()
+                }
+              })
+              .collect();
+
+            chunks
+              .par_iter()
+              .enumerate()
+              .map(|(e2, chunk)| {
+                let mut rng = ChaCha20Rng::from_rng(OsRng).unwrap();
+                rng.set_stream((e1 * chunks.len() + e2 + 1) as u64);
+
+                let mut sub = vec![E::Scalar::ZERO; chunk.len()];
+                for j in chunk {
+                  sub[*j] = E::Scalar::random(&mut rng);
+                }
+                sub
+              })
+              .reduce(
+                || vec![],
+                |mut a, b| {
+                  a.extend(b);
+                  a
+                },
+              )
+          })
+          .collect::<Vec<Vec<E::Scalar>>>()
+      },
+      || {
+        let chunks: Vec<Vec<usize>> = (0..((self.num_io / batch_size) + 1))
+          .map(|a| {
+            if (a + 1) * batch_size > self.num_io {
+              (0..(self.num_io - batch_size * (self.num_io / batch_size))).collect()
+            } else {
+              (0..batch_size).collect()
+            }
+          })
+          .collect();
+
+        chunks
+          .par_iter()
+          .enumerate()
+          .map(|(e2, chunk)| {
+            let mut rng = ChaCha20Rng::from_rng(OsRng).unwrap();
+            rng.set_stream((stream_num + 10 + e2) as u64);
+
+            let mut sub = vec![E::Scalar::ZERO; chunk.len()];
+            for j in chunk {
+              sub[*j] = E::Scalar::random(&mut rng);
+            }
+            sub
+          })
+          .reduce(
+            || vec![],
+            |mut a, b| {
+              a.extend(b);
+              a
+            },
+          )
+      },
+    );
+
+    let mut chachaRng = ChaCha20Rng::from_rng(OsRng).unwrap();
+    chachaRng.set_stream(0 as u64);
+
+    /* for sub_num_vars in &self.num_split_vars {
       let mut sub_W = Vec::new();
-      for _i in 0..*sub_num_vars {
+      for i in 0..*sub_num_vars {
         sub_W.push(E::Scalar::random(&mut chachaRng));
       }
       W.push(sub_W);
-    }
+    }*/
 
-    let mut X = Vec::new();
+    /*    let mut X = Vec::new();
     for _i in 0..self.num_io {
       X.push(E::Scalar::random(&mut chachaRng));
-    }
+    }*/
 
     let u = E::Scalar::random(&mut chachaRng);
 

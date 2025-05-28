@@ -320,7 +320,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
 
   /// verifies a proof of satisfiability of a `RelaxedR1CS` instance
   fn verify(&self, vk: &Self::VerifierKey, U: &RelaxedR1CSInstance<E>) -> Result<(), NovaError> {
-    println!("verifying ...");
+    //println!("verifying ...");
     // unsplit
 
     let mut transcript = E::TE::new(b"RelaxedR1CSSNARK");
