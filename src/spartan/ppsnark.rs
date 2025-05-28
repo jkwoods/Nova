@@ -7,6 +7,7 @@
 use crate::{
   digest::{DigestComputer, SimpleDigestible},
   errors::NovaError,
+  provider::batch_invert,
   r1cs::{R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness},
   spartan::{
     math::Math,
@@ -387,7 +388,7 @@ impl<E: Engine> MemorySumcheckInstance<E> {
         || {
           addr
             .par_iter()
-            .zip(&lookups)
+            .zip(lookups)
             .map(|(a, l)| hash_func(a, l))
             .collect::<Vec<E::Scalar>>()
         },
@@ -399,67 +400,32 @@ impl<E: Engine> MemorySumcheckInstance<E> {
       || hash_func_vec(mem_col, addr_col, L_col),
     );
 
-    let batch_invert = |v: &[E::Scalar]| -> Result<Vec<E::Scalar>, NovaError> {
-      let mut products = vec![E::Scalar::ZERO; v.len()];
-      let mut acc = E::Scalar::ONE;
-
-      for i in 0..v.len() {
-        products[i] = acc;
-        acc *= v[i];
-      }
-
-      // we can compute an inversion only if acc is non-zero
-      if acc == E::Scalar::ZERO {
-        return Err(NovaError::InternalError);
-      }
-
-      // compute the inverse once for all entries
-      acc = acc.invert().unwrap();
-
-      let mut inv = vec![E::Scalar::ZERO; v.len()];
-      for i in 0..v.len() {
-        let tmp = acc * v[v.len() - 1 - i];
-        inv[v.len() - 1 - i] = products[v.len() - 1 - i] * acc;
-        acc = tmp;
-      }
-
-      Ok(inv)
-    };
-
     // compute vectors TS[i]/(T[i] + r) and 1/(W[i] + r)
     let helper = |T: &[E::Scalar],
                   W: &[E::Scalar],
                   TS: &[E::Scalar],
                   r: &E::Scalar|
      -> (
-      (
-        Result<Vec<E::Scalar>, NovaError>,
-        Result<Vec<E::Scalar>, NovaError>,
-      ),
-      (
-        Result<Vec<E::Scalar>, NovaError>,
-        Result<Vec<E::Scalar>, NovaError>,
-      ),
+      (Vec<E::Scalar>, Vec<E::Scalar>),
+      (Vec<E::Scalar>, Vec<E::Scalar>),
     ) {
       rayon::join(
         || {
           rayon::join(
             || {
-              let inv = batch_invert(&T.par_iter().map(|e| *e + *r).collect::<Vec<E::Scalar>>())?;
+              let inv = batch_invert(T.par_iter().map(|e| *e + *r).collect::<Vec<E::Scalar>>());
 
-              // compute inv[i] * TS[i] in parallel
-              Ok(
+                // compute inv[i] * TS[i] in parallel
                 zip_with!((inv.into_par_iter(), TS.par_iter()), |e1, e2| e1 * *e2)
-                  .collect::<Vec<_>>(),
-              )
+                  .collect::<Vec<_>>()
             },
-            || batch_invert(&W.par_iter().map(|e| *e + *r).collect::<Vec<E::Scalar>>()),
+            || batch_invert(W.par_iter().map(|e| *e + *r).collect::<Vec<E::Scalar>>()),
           )
         },
         || {
           rayon::join(
-            || Ok(T.par_iter().map(|e| *e + *r).collect::<Vec<E::Scalar>>()),
-            || Ok(W.par_iter().map(|e| *e + *r).collect::<Vec<E::Scalar>>()),
+            || T.par_iter().map(|e| *e + *r).collect::<Vec<E::Scalar>>(),
+            || W.par_iter().map(|e| *e + *r).collect::<Vec<E::Scalar>>(),
           )
         },
       )
@@ -472,11 +438,6 @@ impl<E: Engine> MemorySumcheckInstance<E> {
       || helper(&T_row, &W_row, ts_row, r),
       || helper(&T_col, &W_col, ts_col, r),
     );
-
-    let t_plus_r_inv_row = t_plus_r_inv_row?;
-    let w_plus_r_inv_row = w_plus_r_inv_row?;
-    let t_plus_r_inv_col = t_plus_r_inv_col?;
-    let w_plus_r_inv_col = w_plus_r_inv_col?;
 
     let (
       (comm_t_plus_r_inv_row, comm_w_plus_r_inv_row),
@@ -510,7 +471,7 @@ impl<E: Engine> MemorySumcheckInstance<E> {
       w_plus_r_inv_col,
     ];
 
-    let aux_poly_vec = [t_plus_r_row?, w_plus_r_row?, t_plus_r_col?, w_plus_r_col?];
+    let aux_poly_vec = [t_plus_r_row, w_plus_r_row, t_plus_r_col, w_plus_r_col];
 
     Ok((comm_vec, poly_vec, aux_poly_vec))
   }

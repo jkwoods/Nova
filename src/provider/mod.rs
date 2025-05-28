@@ -18,6 +18,7 @@ pub(crate) mod ptau;
 pub(crate) mod traits;
 
 mod msm;
+mod batch_inversion;
 
 use crate::{
   provider::{
@@ -32,6 +33,7 @@ use crate::{
   traits::Engine,
 };
 pub use ptau::{check_sanity_of_ptau_file, read_ptau, write_ptau};
+pub use batch_inversion::{batch_inversion, batch_invert};
 use serde::{Deserialize, Serialize};
 
 /// An implementation of Nova traits with HyperKZG over the BN256 curve

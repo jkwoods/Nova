@@ -338,9 +338,9 @@ impl<E: Engine> SumcheckProof<E> {
         let eval_point_0 = comb_func(&poly_A[i], &poly_B[i], &poly_C[i]);
 
         // eval 2: bound_func is -A(low) + 2*A(high)
-        let poly_A_bound_point = poly_A[len + i] + poly_A[len + i] - poly_A[i];
-        let poly_B_bound_point = poly_B[len + i] + poly_B[len + i] - poly_B[i];
-        let poly_C_bound_point = poly_C[len + i] + poly_C[len + i] - poly_C[i];
+        let mut poly_A_bound_point = poly_A[len + i].double() - poly_A[i];
+        let mut poly_B_bound_point = poly_B[len + i].double() - poly_B[i];
+        let mut poly_C_bound_point = poly_C[len + i].double() - poly_C[i];
         let eval_point_2 = comb_func(
           &poly_A_bound_point,
           &poly_B_bound_point,
@@ -348,9 +348,9 @@ impl<E: Engine> SumcheckProof<E> {
         );
 
         // eval 3: bound_func is -2A(low) + 3A(high); computed incrementally with bound_func applied to eval(2)
-        let poly_A_bound_point = poly_A_bound_point + poly_A[len + i] - poly_A[i];
-        let poly_B_bound_point = poly_B_bound_point + poly_B[len + i] - poly_B[i];
-        let poly_C_bound_point = poly_C_bound_point + poly_C[len + i] - poly_C[i];
+        poly_A_bound_point += poly_A[len + i] - poly_A[i];
+        poly_B_bound_point += poly_B[len + i] - poly_B[i];
+        poly_C_bound_point += poly_C[len + i] - poly_C[i];
         let eval_point_3 = comb_func(
           &poly_A_bound_point,
           &poly_B_bound_point,
@@ -383,10 +383,10 @@ impl<E: Engine> SumcheckProof<E> {
         let eval_point_0 = comb_func(&poly_A[i], &poly_B[i], &poly_C[i], &poly_D[i]);
 
         // eval 2: bound_func is -A(low) + 2*A(high)
-        let poly_A_bound_point = poly_A[len + i] + poly_A[len + i] - poly_A[i];
-        let poly_B_bound_point = poly_B[len + i] + poly_B[len + i] - poly_B[i];
-        let poly_C_bound_point = poly_C[len + i] + poly_C[len + i] - poly_C[i];
-        let poly_D_bound_point = poly_D[len + i] + poly_D[len + i] - poly_D[i];
+        let mut poly_A_bound_point = poly_A[len + i].double() - poly_A[i];
+        let mut poly_B_bound_point = poly_B[len + i].double() - poly_B[i];
+        let mut poly_C_bound_point = poly_C[len + i].double() - poly_C[i];
+        let mut poly_D_bound_point = poly_D[len + i].double() - poly_D[i];
         let eval_point_2 = comb_func(
           &poly_A_bound_point,
           &poly_B_bound_point,
@@ -395,10 +395,10 @@ impl<E: Engine> SumcheckProof<E> {
         );
 
         // eval 3: bound_func is -2A(low) + 3A(high); computed incrementally with bound_func applied to eval(2)
-        let poly_A_bound_point = poly_A_bound_point + poly_A[len + i] - poly_A[i];
-        let poly_B_bound_point = poly_B_bound_point + poly_B[len + i] - poly_B[i];
-        let poly_C_bound_point = poly_C_bound_point + poly_C[len + i] - poly_C[i];
-        let poly_D_bound_point = poly_D_bound_point + poly_D[len + i] - poly_D[i];
+        poly_A_bound_point += poly_A[len + i] - poly_A[i];
+        poly_B_bound_point += poly_B[len + i] - poly_B[i];
+        poly_C_bound_point += poly_C[len + i] - poly_C[i];
+        poly_D_bound_point += poly_D[len + i] - poly_D[i];
         let eval_point_3 = comb_func(
           &poly_A_bound_point,
           &poly_B_bound_point,
@@ -535,10 +535,9 @@ impl<E: Engine> SumcheckProof<E> {
     }
 
     let num_rounds_max = *num_rounds.iter().max().unwrap();
-    let mut e = zip_with!(
-      iter,
-      (claims, num_rounds, coeffs),
-      |claim, num_rounds, coeff| {
+    let mut e = (claims, num_rounds, coeffs)
+      .into_par_iter()
+      .map(|(claim, num_rounds, coeff)| {
         let scaled_claim = E::Scalar::from((1 << (num_rounds_max - num_rounds)) as u64) * claim;
         scaled_claim * coeff
       }
@@ -631,7 +630,7 @@ impl<E: Engine> SumcheckProof<E> {
       .collect::<Vec<_>>();
 
     let eval_expected = zip_with!(
-      iter,
+      par_iter,
       (poly_A_final, poly_B_final, poly_C_final, coeffs),
       |eA, eB, eC, coeff| comb_func(eA, eB, eC) * coeff
     )
