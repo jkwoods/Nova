@@ -1,0 +1,135 @@
+CompressedSNARK-StepCircuitSize-1038591/Verify
+                        time:   [123.97 ms 126.31 ms 128.68 ms]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) low mild
+
+     Running benches/recursive-snark.rs (target/release/deps/recursive_snark-207d4fa34386abe2)
+Gnuplot not found, using plotters backend
+Benchmarking RecursiveSNARK-StepCircuitSize-0/Prove: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 5.9s or enable flat sampling.
+RecursiveSNARK-StepCircuitSize-0/Prove
+                        time:   [106.88 ms 112.64 ms 118.84 ms]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+Benchmarking RecursiveSNARK-StepCircuitSize-0/Verify: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 6.6s or enable flat sampling.
+RecursiveSNARK-StepCircuitSize-0/Verify
+                        time:   [119.67 ms 120.42 ms 121.44 ms]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+
+Benchmarking RecursiveSNARK-StepCircuitSize-6399/Prove: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 7.8s or enable flat sampling.
+RecursiveSNARK-StepCircuitSize-6399/Prove
+                        time:   [141.08 ms 145.28 ms 149.14 ms]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+Benchmarking RecursiveSNARK-StepCircuitSize-6399/Verify: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 8.3s or enable flat sampling.
+RecursiveSNARK-StepCircuitSize-6399/Verify
+                        time:   [149.23 ms 150.29 ms 151.71 ms]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+
+RecursiveSNARK-StepCircuitSize-22783/Prove
+                        time:   [215.99 ms 218.47 ms 220.72 ms]
+RecursiveSNARK-StepCircuitSize-22783/Verify
+                        time:   [220.83 ms 224.04 ms 226.89 ms]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) low mild
+
+RecursiveSNARK-StepCircuitSize-55551/Prove
+                        time:   [358.36 ms 361.75 ms 365.99 ms]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+RecursiveSNARK-StepCircuitSize-55551/Verify
+                        time:   [350.63 ms 356.83 ms 363.37 ms]
+
+Benchmarking RecursiveSNARK-StepCircuitSize-121087/Prove: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 6.5s.
+RecursiveSNARK-StepCircuitSize-121087/Prove
+                        time:   [616.80 ms 621.31 ms 626.13 ms]
+Benchmarking RecursiveSNARK-StepCircuitSize-121087/Verify: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 6.0s.
+RecursiveSNARK-StepCircuitSize-121087/Verify
+                        time:   [582.88 ms 593.17 ms 602.89 ms]
+
+Benchmarking RecursiveSNARK-StepCircuitSize-252159/Prove: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 11.1s.
+RecursiveSNARK-StepCircuitSize-252159/Prove
+                        time:   [1.1148 s 1.1326 s 1.1560 s]
+Found 2 outliers among 10 measurements (20.00%)
+  1 (10.00%) high mild
+  1 (10.00%) high severe
+Benchmarking RecursiveSNARK-StepCircuitSize-252159/Verify: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 12.4s.
+RecursiveSNARK-StepCircuitSize-252159/Verify
+                        time:   [1.1067 s 1.1197 s 1.1324 s]
+
+Benchmarking RecursiveSNARK-StepCircuitSize-514303/Prove: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 20.1s.
+RecursiveSNARK-StepCircuitSize-514303/Prove
+                        time:   [1.9845 s 2.0202 s 2.0723 s]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high severe
+Benchmarking RecursiveSNARK-StepCircuitSize-514303/Verify: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 19.9s.
+RecursiveSNARK-StepCircuitSize-514303/Verify
+                        time:   [1.9669 s 1.9752 s 1.9847 s]
+
+Benchmarking RecursiveSNARK-StepCircuitSize-1038591/Prove: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 36.3s.
+RecursiveSNARK-StepCircuitSize-1038591/Prove
+                        time:   [3.6909 s 3.6998 s 3.7085 s]
+Benchmarking RecursiveSNARK-StepCircuitSize-1038591/Verify: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 38.0s.
+RecursiveSNARK-StepCircuitSize-1038591/Verify
+                        time:   [3.6485 s 3.6788 s 3.7291 s]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high severe
+
+     Running benches/sha256.rs (target/release/deps/sha256-635c47a20f83a0eb)
+Gnuplot not found, using plotters backend
+NovaProve-Sha256-message-len-64/Prove
+                        time:   [67.028 ms 68.401 ms 69.580 ms]
+
+NovaProve-Sha256-message-len-128/Prove
+                        time:   [75.260 ms 77.269 ms 79.005 ms]
+
+Benchmarking NovaProve-Sha256-message-len-256/Prove: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 5.7s or enable flat sampling.
+NovaProve-Sha256-message-len-256/Prove
+                        time:   [93.651 ms 96.374 ms 98.516 ms]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+
+Benchmarking NovaProve-Sha256-message-len-512/Prove: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 6.3s or enable flat sampling.
+NovaProve-Sha256-message-len-512/Prove
+                        time:   [113.41 ms 116.62 ms 119.68 ms]
+Found 1 outliers among 10 measurements (10.00%)
+  1 (10.00%) high mild
+
+Benchmarking NovaProve-Sha256-message-len-1024/Prove: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 9.7s or enable flat sampling.
+NovaProve-Sha256-message-len-1024/Prove
+                        time:   [177.96 ms 179.37 ms 181.38 ms]
+
+NovaProve-Sha256-message-len-2048/Prove
+                        time:   [295.82 ms 299.71 ms 303.80 ms]
+
+NovaProve-Sha256-message-len-4096/Prove
+                        time:   [465.00 ms 472.44 ms 479.41 ms]
+
+Benchmarking NovaProve-Sha256-message-len-8192/Prove: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 8.1s.
+NovaProve-Sha256-message-len-8192/Prove
+                        time:   [877.15 ms 902.21 ms 935.39 ms]
+Found 2 outliers among 10 measurements (20.00%)
+  2 (20.00%) high severe
+
+Benchmarking NovaProve-Sha256-message-len-16384/Prove: Warming up for 3.0000 s
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 15.7s.
+NovaProve-Sha256-message-len-16384/Prove
+                        time:   [1.6342 s 1.6712 s 1.7077 s]
+

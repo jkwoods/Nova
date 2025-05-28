@@ -751,65 +751,119 @@ where
   ) -> Result<Self, NovaError> {
     // prove three foldings
 
-    // fold secondary U/W with secondary u/w to get Uf/Wf
-    let (nifs_Uf_secondary, (r_Uf_secondary, r_Wf_secondary)) = NIFS::prove(
-      &pp.ck_secondary,
-      &pp.ro_consts_secondary,
-      &scalar_as_base::<E1>(pp.digest()),
-      &pp.r1cs_shape_secondary,
-      &recursive_snark.r_U_secondary,
-      &recursive_snark.r_W_secondary,
-      &recursive_snark.l_u_secondary,
-      &recursive_snark.l_w_secondary,
-    )?;
-
-    // fold Uf/Wf with random inst/wit to get U1/W1
-    let (l_ur_secondary, l_wr_secondary) = pp
-      .r1cs_shape_secondary
-      .sample_random_instance_witness(&pp.ck_secondary)?;
-
-    let (nifs_Un_secondary, (r_Un_secondary, r_Wn_secondary)) = NIFSRelaxed::prove(
-      &pp.ck_secondary,
-      &pp.ro_consts_secondary,
-      &scalar_as_base::<E1>(pp.digest()),
-      &pp.r1cs_shape_secondary,
-      &r_Uf_secondary,
-      &r_Wf_secondary,
-      &l_ur_secondary,
-      &l_wr_secondary,
-    )?;
-
-    // fold primary U/W with random inst/wit to get U2/W2
-    let (l_ur_primary, l_wr_primary) = pp
-      .r1cs_shape_primary
-      .sample_random_instance_witness(&pp.ck_primary)?;
-
-    let (nifs_Un_primary, (r_Un_primary, r_Wn_primary)) = NIFSRelaxed::prove(
-      &pp.ck_primary,
-      &pp.ro_consts_primary,
-      &pp.digest(),
-      &pp.r1cs_shape_primary,
-      &recursive_snark.r_U_primary,
-      &recursive_snark.r_W_primary,
-      &l_ur_primary,
-      &l_wr_primary,
-    )?;
-
-    // derandomize/unblind commitments
-    let (derandom_r_Wn_primary, wit_blind_r_Wn_primary, err_blind_r_Wn_primary) =
-      r_Wn_primary.derandomize();
-    let derandom_r_Un_primary = r_Un_primary.derandomize(
-      &E1::CE::derand_key(&pp.ck_primary),
-      &wit_blind_r_Wn_primary,
-      &err_blind_r_Wn_primary,
+    // fold secondary U/W with secondary u/w to get Uf/Wf + get random
+    let (Uf_res, (rand_sec_res, rand_prim_res)) = rayon::join(
+      || {
+        NIFS::prove(
+          &pp.ck_secondary,
+          &pp.ro_consts_secondary,
+          &scalar_as_base::<E1>(pp.digest()),
+          &pp.r1cs_shape_secondary,
+          &recursive_snark.r_U_secondary,
+          &recursive_snark.r_W_secondary,
+          &recursive_snark.l_u_secondary,
+          &recursive_snark.l_w_secondary,
+        )
+      },
+      || {
+        rayon::join(
+          || {
+            pp.r1cs_shape_secondary
+              .sample_random_instance_witness(&pp.ck_secondary)
+          },
+          || {
+            pp.r1cs_shape_primary
+              .sample_random_instance_witness(&pp.ck_primary)
+          },
+        )
+      },
     );
 
-    let (derandom_r_Wn_secondary, wit_blind_r_Wn_secondary, err_blind_r_Wn_secondary) =
-      r_Wn_secondary.derandomize();
-    let derandom_r_Un_secondary = r_Un_secondary.derandomize(
-      &E2::CE::derand_key(&pp.ck_secondary),
-      &wit_blind_r_Wn_secondary,
-      &err_blind_r_Wn_secondary,
+    let (
+      (nifs_Uf_secondary, (r_Uf_secondary, r_Wf_secondary)),
+      (l_ur_secondary, l_wr_secondary),
+      (l_ur_primary, l_wr_primary),
+    ) = (Uf_res?, rand_sec_res?, rand_prim_res?);
+
+    // fold Uf/Wf with random inst/wit to get U1/W1
+    // fold primary U/W with random inst/wit to get U2/W2
+    let (sec_res, prim_res) = rayon::join(
+      || {
+        NIFSRelaxed::prove(
+          &pp.ck_secondary,
+          &pp.ro_consts_secondary,
+          &scalar_as_base::<E1>(pp.digest()),
+          &pp.r1cs_shape_secondary,
+          &r_Uf_secondary,
+          &r_Wf_secondary,
+          &l_ur_secondary,
+          &l_wr_secondary,
+        )
+      },
+      || {
+        NIFSRelaxed::prove(
+          &pp.ck_primary,
+          &pp.ro_consts_primary,
+          &pp.digest(),
+          &pp.r1cs_shape_primary,
+          &recursive_snark.r_U_primary,
+          &recursive_snark.r_W_primary,
+          &l_ur_primary,
+          &l_wr_primary,
+        )
+      },
+    );
+
+    let (
+      (nifs_Un_secondary, (r_Un_secondary, r_Wn_secondary)),
+      (nifs_Un_primary, (r_Un_primary, r_Wn_primary)),
+    ) = (sec_res?, prim_res?);
+
+    // derandomize/unblind commitments
+    let (
+      (
+        derandom_r_Wn_primary,
+        wit_blind_r_Wn_primary,
+        err_blind_r_Wn_primary,
+        derandom_r_Un_primary,
+      ),
+      (
+        derandom_r_Wn_secondary,
+        wit_blind_r_Wn_secondary,
+        err_blind_r_Wn_secondary,
+        derandom_r_Un_secondary,
+      ),
+    ) = rayon::join(
+      || {
+        let (derandom_r_Wn_primary, wit_blind_r_Wn_primary, err_blind_r_Wn_primary) =
+          r_Wn_primary.derandomize();
+        let derandom_r_Un_primary = r_Un_primary.derandomize(
+          &E1::CE::derand_key(&pp.ck_primary),
+          &wit_blind_r_Wn_primary,
+          &err_blind_r_Wn_primary,
+        );
+        (
+          derandom_r_Wn_primary,
+          wit_blind_r_Wn_primary,
+          err_blind_r_Wn_primary,
+          derandom_r_Un_primary,
+        )
+      },
+      || {
+        let (derandom_r_Wn_secondary, wit_blind_r_Wn_secondary, err_blind_r_Wn_secondary) =
+          r_Wn_secondary.derandomize();
+        let derandom_r_Un_secondary = r_Un_secondary.derandomize(
+          &E2::CE::derand_key(&pp.ck_secondary),
+          &wit_blind_r_Wn_secondary,
+          &err_blind_r_Wn_secondary,
+        );
+        (
+          derandom_r_Wn_secondary,
+          wit_blind_r_Wn_secondary,
+          err_blind_r_Wn_secondary,
+          derandom_r_Un_secondary,
+        )
+      },
     );
 
     // create SNARKs proving the knowledge of Wn primary/secondary
