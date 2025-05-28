@@ -59,7 +59,7 @@ fn bench_compressed_snark_internal<S1: RelaxedR1CSSNARKTrait<E1>, S2: RelaxedR1C
 
   // Produce public parameters
   let pp =
-    PublicParams::<E1, E2, C>::setup(&mut c, &*S1::ck_floor(), &*S2::ck_floor(), vec![]).unwrap();
+    PublicParams::<E1, E2, C>::setup(&mut c, &*S1::ck_floor(), &*S2::ck_floor(), vec![],0).unwrap();
 
   // Produce prover and verifier keys for CompressedSNARK
   let (pk, vk) = CompressedSNARK::<_, _, _, S1, S2>::setup(&pp).unwrap();
@@ -73,11 +73,12 @@ fn bench_compressed_snark_internal<S1: RelaxedR1CSSNARKTrait<E1>, S2: RelaxedR1C
     None,
     vec![],
     vec![],
+    0
   )
   .unwrap();
 
   for i in 0..num_steps {
-    let res = recursive_snark.prove_step(&pp, &mut c, None, vec![], vec![]);
+    let res = recursive_snark.prove_step(&pp, &mut c, None, vec![], vec![],0);
     assert!(res.is_ok());
 
     // verify the recursive snark at each step of recursion

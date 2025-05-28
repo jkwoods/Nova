@@ -27,7 +27,7 @@ use core::marker::PhantomData;
 use ff::Field;
 use once_cell::sync::OnceCell;
 use rand_core::OsRng;
-use serde::{Deserialize, Serialize};
+use serde::{de::value, Deserialize, Serialize};
 
 mod circuit;
 pub(crate) mod nifs;
@@ -122,6 +122,7 @@ where
     ck_hint1: &CommitmentKeyHint<E1>,
     ck_hint2: &CommitmentKeyHint<E2>,
     ram_batch_sizes: Vec<usize>,
+    value_size: usize,
   ) -> Result<Self, NovaError> {
     let ro_consts_primary: ROConstants<E1> = ROConstants::<E1>::default();
     let ro_consts_secondary: ROConstants<E2> = ROConstants::<E2>::default();
@@ -140,6 +141,7 @@ where
       ro_consts_circuit_primary.clone(),
       1,
       ram_batch_sizes.clone(),
+      value_size
     );
     let mut cs: ShapeCS<E1> = ShapeCS::new();
     let _ = circuit_primary.synthesize(&mut cs);
@@ -154,6 +156,7 @@ where
       ro_consts_circuit_secondary.clone(),
       ram_batch_sizes.len() + 1,
       vec![],
+      value_size
     );
     let mut cs: ShapeCS<E2> = ShapeCS::new();
     let _ = circuit_secondary.synthesize(&mut cs);
@@ -259,6 +262,7 @@ where
     ram_blind: Option<Vec<E1::Scalar>>,
     ram_hints: Vec<E1::Scalar>,
     ram_batch_sizes: Vec<usize>,
+    value_size: usize
   ) -> Result<Self, NovaError> {
     if z0.len() != pp.F_arity {
       return Err(NovaError::InvalidInitialInputLength);
@@ -290,6 +294,7 @@ where
       pp.ro_consts_circuit_primary.clone(),
       1,
       ram_batch_sizes.clone(),
+      value_size
     );
     let (zi_primary, _) = circuit_primary.synthesize(&mut cs_primary)?;
     let (u_primary, w_primary) =
@@ -318,6 +323,7 @@ where
       pp.ro_consts_circuit_secondary.clone(),
       ram_batch_sizes.len() + 1,
       vec![],
+      value_size
     );
     let (_, C_next) = circuit_secondary.synthesize(&mut cs_secondary)?;
     let (u_secondary, w_secondary) =
@@ -388,6 +394,7 @@ where
     ram_blind: Option<Vec<E1::Scalar>>,
     ram_hints: Vec<E1::Scalar>,
     ram_batch_sizes: Vec<usize>,
+    value_size: usize,
   ) -> Result<(), NovaError> {
     // first step was already done in the constructor
     if self.i == 0 {
@@ -431,6 +438,7 @@ where
       pp.ro_consts_circuit_primary.clone(),
       1,
       ram_batch_sizes.clone(),
+      value_size
     );
     let (zi_primary, _) = circuit_primary.synthesize(&mut cs_primary)?;
 
@@ -474,6 +482,7 @@ where
       pp.ro_consts_circuit_secondary.clone(),
       ram_batch_sizes.len() + 1,
       vec![],
+      value_size
     );
     let (_, C_next) = circuit_secondary.synthesize(&mut cs_secondary)?;
 
@@ -1182,6 +1191,7 @@ mod tests {
       &*default_ck_hint(),
       &*default_ck_hint(),
       vec![],
+      0
     )
     .unwrap();
 
@@ -1195,10 +1205,11 @@ mod tests {
       None,
       vec![],
       vec![],
+      0
     )
     .unwrap();
 
-    let res = recursive_snark.prove_step(&pp, &mut test_circuit, None, vec![], vec![]);
+    let res = recursive_snark.prove_step(&pp, &mut test_circuit, None, vec![], vec![],0);
 
     assert!(res.is_ok());
 
@@ -1227,6 +1238,7 @@ mod tests {
       &*default_ck_hint(),
       &*default_ck_hint(),
       vec![],
+      0
     )
     .unwrap();
 
@@ -1240,11 +1252,12 @@ mod tests {
       None,
       vec![],
       vec![],
+      0
     )
     .unwrap();
 
     for i in 0..num_steps {
-      let res = recursive_snark.prove_step(&pp, &mut circuit, None, vec![], vec![]);
+      let res = recursive_snark.prove_step(&pp, &mut circuit, None, vec![], vec![],0);
       assert!(res.is_ok());
 
       // verify the recursive snark at each step of recursion
@@ -1289,6 +1302,7 @@ mod tests {
       &*default_ck_hint(),
       &*default_ck_hint(),
       vec![],
+      0
     )
     .unwrap();
 
@@ -1302,11 +1316,12 @@ mod tests {
       None,
       vec![],
       vec![],
+      0
     )
     .unwrap();
 
     for _i in 0..num_steps {
-      let res = recursive_snark.prove_step(&pp, &mut circuit, None, vec![], vec![]);
+      let res = recursive_snark.prove_step(&pp, &mut circuit, None, vec![], vec![],0);
       assert!(res.is_ok());
     }
 
@@ -1511,6 +1526,7 @@ mod tests {
       &*default_ck_hint(),
       &*default_ck_hint(),
       vec![],
+      0
     )
     .unwrap();
 
@@ -1531,11 +1547,12 @@ mod tests {
       None,
       vec![],
       vec![],
+      0
     )
     .unwrap();
 
     for mut circuit in roots.into_iter().take(num_steps) {
-      let res = recursive_snark.prove_step(&pp, &mut circuit, None, vec![], vec![]);
+      let res = recursive_snark.prove_step(&pp, &mut circuit, None, vec![], vec![], 0);
       assert!(res.is_ok());
     }
 
@@ -1583,6 +1600,7 @@ mod tests {
       &*default_ck_hint(),
       &*default_ck_hint(),
       vec![],
+      0,
     )
     .unwrap();
 
@@ -1596,11 +1614,12 @@ mod tests {
       None,
       vec![],
       vec![],
+      0
     )
     .unwrap();
 
     // produce a recursive SNARK
-    let res = recursive_snark.prove_step(&pp, &mut test_circuit1, None, vec![], vec![]);
+    let res = recursive_snark.prove_step(&pp, &mut test_circuit1, None, vec![], vec![], 0);
 
     assert!(res.is_ok());
 
@@ -1654,6 +1673,7 @@ mod tests {
       &*default_ck_hint(),
       &*default_ck_hint(),
       vec![],
+      0
     );
     assert!(pp.is_err());
     assert_eq!(pp.err(), Some(NovaError::InvalidStepCircuitIO));
@@ -1664,6 +1684,7 @@ mod tests {
       &*default_ck_hint(),
       &*default_ck_hint(),
       vec![],
+      0
     );
     assert!(pp.is_err());
     assert_eq!(pp.err(), Some(NovaError::InvalidStepCircuitIO));

@@ -83,6 +83,7 @@ pub struct NovaAugmentedCircuit<'a, E: Engine, SC: StepCircuit<E::Base>> {
   step_circuit: &'a mut SC,   // The function that is applied for each step
   num_split_witnesses: usize, // num of cmts in the OPPOSITE circuit
   ram_batch_sizes: Vec<usize>,
+  value_size: usize,
 }
 
 impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
@@ -94,6 +95,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
     ro_consts: ROConstantsCircuit<E>,
     num_split_witnesses: usize,
     ram_batch_sizes: Vec<usize>,
+    value_size: usize,
   ) -> Self {
     Self {
       is_primary_circuit,
@@ -102,6 +104,7 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
       ro_consts,
       num_split_witnesses,
       ram_batch_sizes,
+      value_size,
     }
   }
 
@@ -297,6 +300,50 @@ impl<'a, E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'a, E, SC> {
 }
 
 impl<E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'_, E, SC> {
+  fn chunk_cee<CS: ConstraintSystem<<E as Engine>::Base>>(
+    &self,
+    l_vals: &Vec<AllocatedNum<E::Base>>,
+    r_vals: &[AllocatedNum<E::Base>],
+    cs: &mut CS,
+  ) -> Result<(Vec<AllocatedNum<E::Base>>, Vec<AllocatedNum<E::Base>>), SynthesisError> {
+    let mut l_out = Vec::new();
+    let mut r_out = Vec::new();
+    let mut ctr = 0;
+    assert_eq!(l_vals.len(), r_vals.len());
+    let chunk_size = 3 + self.value_size;
+
+    for i in 0..l_vals.len() / chunk_size {
+      let l_chunk = AllocatedNum::alloc(cs.namespace(|| format!("l_chunk_{}", i)), || {
+        let mut val = E::Base::from(1u64 << (32 as u64));
+        for j in 0..chunk_size {
+          val += (*l_vals[(ctr * chunk_size) + j].get_value().get()?
+            * E::Base::from(1u64 << (32 as u64)));
+        }
+        Ok(val)
+      })?;
+      let r_chunk = AllocatedNum::alloc(cs.namespace(|| format!("r_chunk_{}", i)), || {
+        let mut val = E::Base::from(1u64 << (32 as u64));
+        for j in 0..chunk_size {
+          val += (*r_vals[(ctr * chunk_size) + j].get_value().get()?
+            * E::Base::from(1u64 << (32 as u64)));
+        }
+        Ok(val)
+      })?;
+      l_out.push(l_chunk);
+      r_out.push(r_chunk);
+      let rest_l = (0..self.value_size)
+        .map(|j| l_vals[(ctr * chunk_size) + 3 + j].clone())
+        .collect::<Vec<_>>();
+      let rest_r = (0..self.value_size)
+        .map(|j| r_vals[(ctr * chunk_size) + 3 + j].clone())
+        .collect::<Vec<_>>();
+
+      l_out.extend(rest_l);
+      r_out.extend(rest_r);
+      ctr += 1;
+    }
+    Ok((l_out, r_out))
+  }
   /// synthesize circuit giving constraint system
   pub fn synthesize<CS: ConstraintSystem<<E as Engine>::Base>>(
     mut self,
@@ -407,13 +454,24 @@ impl<E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'_, E, SC> {
     let ram_from_z = &z_next_full[0..total_ram];
     let z_next = &z_next_full[total_ram..];
 
+    let (comp_ram_hints_l, comp_ram_hints_r) = 
+      self.chunk_cee(&ram_hints, ram_from_z, cs)?;
+
     // make sure ram hints are tied in // TODO for mult cmts
-    for j in 0..ram_hints.len() {
+    // for j in 0..ram_hints.len() {
+    //   cs.enforce(
+    //     || format!("ram hint {}", j),
+    //     |lc| lc + ram_hints[j].get_variable(),
+    //     |lc| lc + CS::one(),
+    //     |lc| lc + ram_from_z[j].get_variable(),
+    //   );
+    // }
+    for j in 0..comp_ram_hints_l.len() {
       cs.enforce(
         || format!("ram hint {}", j),
-        |lc| lc + ram_hints[j].get_variable(),
+        |lc| lc + comp_ram_hints_l[j].get_variable(),
         |lc| lc + CS::one(),
-        |lc| lc + ram_from_z[j].get_variable(),
+        |lc| lc + comp_ram_hints_r[j].get_variable(),
       );
     }
 
@@ -501,7 +559,7 @@ mod tests {
     let mut tc1 = TrivialCircuit::default();
     // Initialize the shape and ck for the primary
     let circuit1: NovaAugmentedCircuit<'_, E2, TrivialCircuit<<E2 as Engine>::Base>> =
-      NovaAugmentedCircuit::new(true, None, &mut tc1, ro_consts1.clone(), 1, vec![]);
+      NovaAugmentedCircuit::new(true, None, &mut tc1, ro_consts1.clone(), 1, vec![], 0);
     let mut cs: TestShapeCS<E1> = TestShapeCS::new();
     let _ = circuit1.synthesize(&mut cs);
     let (shape1, ck1) = cs.r1cs_shape(&*default_ck_hint(), vec![]);
@@ -510,7 +568,7 @@ mod tests {
     let mut tc2 = TrivialCircuit::default();
     // Initialize the shape and ck for the secondary
     let circuit2: NovaAugmentedCircuit<'_, E1, TrivialCircuit<<E1 as Engine>::Base>> =
-      NovaAugmentedCircuit::new(false, None, &mut tc2, ro_consts2.clone(), 1, vec![]);
+      NovaAugmentedCircuit::new(false, None, &mut tc2, ro_consts2.clone(), 1, vec![], 0);
     let mut cs: TestShapeCS<E2> = TestShapeCS::new();
     let _ = circuit2.synthesize(&mut cs);
     let (shape2, ck2) = cs.r1cs_shape(&*default_ck_hint(), vec![]);
@@ -534,7 +592,7 @@ mod tests {
       None,
     );
     let circuit1: NovaAugmentedCircuit<'_, E2, TrivialCircuit<<E2 as Engine>::Base>> =
-      NovaAugmentedCircuit::new(true, Some(inputs1), &mut tc1, ro_consts1, 1, vec![]);
+      NovaAugmentedCircuit::new(true, Some(inputs1), &mut tc1, ro_consts1, 1, vec![], 0);
     let _ = circuit1.synthesize(&mut cs1);
     let (inst1, witness1) = cs1.r1cs_instance_and_witness(&shape1, &ck1, None).unwrap();
     // Make sure that this is satisfiable
@@ -558,7 +616,7 @@ mod tests {
       None,
     );
     let circuit2: NovaAugmentedCircuit<'_, E1, TrivialCircuit<<E1 as Engine>::Base>> =
-      NovaAugmentedCircuit::new(false, Some(inputs2), &mut tc2, ro_consts2, 1, vec![]);
+      NovaAugmentedCircuit::new(false, Some(inputs2), &mut tc2, ro_consts2, 1, vec![], 0);
     let _ = circuit2.synthesize(&mut cs2);
     let (inst2, witness2) = cs2.r1cs_instance_and_witness(&shape2, &ck2, None).unwrap();
     // Make sure that it is satisfiable
