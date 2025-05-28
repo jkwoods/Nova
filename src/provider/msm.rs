@@ -1,8 +1,9 @@
 //! This module provides a multi-scalar multiplication routine
 //! The generic implementation is adapted from halo2; we add an optimization to commit to bits more efficiently
 //! The specialized implementations are adapted from jolt, with additional optimizations and parallelization.
-use ff::{Field, PrimeField};
-use halo2curves::{group::Group, CurveAffine};
+use ff::PrimeField;
+use halo2curves::{group::Group, CurveAffine, msm::msm_best};
+use itertools::Either;
 use num_integer::Integer;
 use num_traits::{ToPrimitive, Zero};
 use rayon::{current_num_threads, prelude::*};
@@ -32,76 +33,27 @@ impl<C: CurveAffine> Bucket<C> {
   }
 }
 
-fn cpu_msm_serial<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve {
-  let c = if bases.len() < 4 {
-    1
-  } else if bases.len() < 32 {
-    3
-  } else {
-    (f64::from(bases.len() as u32)).ln().ceil() as usize
-  };
+pub fn lt_little_endian(a: &[u8], b: &[u8]) -> bool {
+    let a = trim_trailing_zeros(a);
 
-  fn get_at<F: PrimeField>(segment: usize, c: usize, bytes: &F::Repr) -> usize {
-    let skip_bits = segment * c;
-    let skip_bytes = skip_bits / 8;
-
-    if skip_bytes >= 32 {
-      return 0;
+    match a.len().cmp(&b.len()) {
+        std::cmp::Ordering::Less => return true,
+        std::cmp::Ordering::Greater => return false,
+        std::cmp::Ordering::Equal => {}
     }
 
-    let mut v = [0; 8];
-    for (v, o) in v.iter_mut().zip(bytes.as_ref()[skip_bytes..].iter()) {
-      *v = *o;
+    // Compare from most significant byte to least (end to start)
+    for (&byte_a, &byte_b) in a.iter().rev().zip(b.iter().rev()) {
+        if byte_a != byte_b {
+            return byte_a < byte_b;
+        }
     }
+    false
+}
 
-    let mut tmp = u64::from_le_bytes(v);
-    tmp >>= skip_bits - (skip_bytes * 8);
-    tmp %= 1 << c;
-
-    tmp as usize
-  }
-
-  let boolean_sum = coeffs
-    .iter()
-    .zip(bases.iter())
-    .filter(|(scalar, _)| *scalar == &C::Scalar::ONE)
-    .fold(C::Curve::identity(), |mut acc, (_, base)| {
-      acc += *base;
-      acc
-    });
-  let non_boolean_sum = {
-    let segments = (256 / c) + 1;
-    (0..segments)
-      .rev()
-      .fold(C::Curve::identity(), |mut acc, segment| {
-        (0..c).for_each(|_| acc = acc.double());
-
-        let mut buckets = vec![Bucket::None; (1 << c) - 1];
-
-        for (coeff, base) in coeffs.iter().zip(bases.iter()) {
-          // skip Booleans
-          if *coeff != C::Scalar::ZERO && *coeff != C::Scalar::ONE {
-            let coeff = get_at::<C::Scalar>(segment, c, &coeff.to_repr());
-            if coeff != 0 {
-              buckets[coeff - 1].add_assign(base);
-            }
-          }
-        }
-
-        // Summation by parts
-        // e.g. 3a + 2b + 1c = a +
-        //                    (a) + b +
-        //                    ((a) + b) + c
-        let mut running_sum = C::Curve::identity();
-        for exp in buckets.into_iter().rev() {
-          running_sum = exp.add(running_sum);
-          acc += &running_sum;
-        }
-        acc
-      })
-  };
-
-  boolean_sum + non_boolean_sum
+fn trim_trailing_zeros(bytes: &[u8]) -> &[u8] {
+    let end = bytes.iter().rposition(|&b| b != 0).map_or(0, |i| i + 1);
+    &bytes[..end]
 }
 
 /// Performs a multi-scalar-multiplication operation without GPU acceleration.
@@ -112,18 +64,33 @@ fn cpu_msm_serial<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve
 /// Adapted from zcash/halo2
 pub fn msm<C: CurveAffine>(coeffs: &[C::Scalar], bases: &[C]) -> C::Curve {
   assert_eq!(coeffs.len(), bases.len());
-
-  let num_threads = current_num_threads();
-  if coeffs.len() > num_threads {
-    let chunk = coeffs.len() / num_threads;
-    coeffs
-      .par_chunks(chunk)
-      .zip(bases.par_chunks(chunk))
-      .map(|(coeffs, bases)| cpu_msm_serial(coeffs, bases))
-      .reduce(C::Curve::identity, |sum, evl| sum + evl)
+  
+  // Partition the coefficients into small (< 64 bits) and large (>= 64 bits).
+  // We use a u64 to represent small coefficients, and the rest are processed
+  // using the standard MSM algorithm.
+  let u64_max = C::Scalar::from(u64::MAX).to_repr();
+  let u64_max_bytes = &u64_max.as_ref()[..8];
+  let (small, rest): (Vec<_>, Vec<_>) = coeffs
+    .par_iter()
+    .zip(bases).partition_map(|(scalar, base)| {
+      let scalar_repr = scalar.to_repr();
+      let scalar_repr_bytes = scalar_repr.as_ref();
+      
+      if lt_little_endian(scalar_repr_bytes, u64_max_bytes) {
+        let scalar = u64::from_le_bytes(scalar_repr_bytes[..8].try_into().unwrap());
+        Either::Left((scalar, *base))
+      } else {
+        Either::Right((*scalar, *base))
+      }
+    });
+  let small_result = if !small.is_empty() {
+    msm_small_zipped(&small)
   } else {
-    cpu_msm_serial(coeffs, bases)
-  }
+    C::Curve::identity()
+  };
+  let (rest_scalars, rest_bases): (Vec<_>, Vec<_>) = rest.into_par_iter().unzip();
+  let rest_result = msm_best(&rest_scalars, &rest_bases);
+  small_result + rest_result
 }
 
 fn num_bits(n: usize) -> usize {
@@ -139,25 +106,35 @@ pub fn msm_small<C: CurveAffine, T: Integer + Into<u64> + Copy + Sync + ToPrimit
   scalars: &[T],
   bases: &[C],
 ) -> C::Curve {
-  assert_eq!(bases.len(), scalars.len());
-
-  let max_num_bits = num_bits(scalars.iter().max().unwrap().to_usize().unwrap());
+  let scalars_and_bases: Vec<_> = scalars.iter().zip(bases).map(|(s, b)| (*s, *b)).collect();
+  let max_num_bits = num_bits(scalars_and_bases.iter().map(|(s, _)| s).max().unwrap().to_usize().unwrap());
   match max_num_bits {
     0 => C::identity().into(),
-    1 => msm_binary(scalars, bases),
-    2..=10 => msm_10(scalars, bases, max_num_bits),
-    _ => msm_small_rest(scalars, bases, max_num_bits),
+    1 => msm_binary(&scalars_and_bases),
+    2..=10 => msm_10(&scalars_and_bases, max_num_bits),
+    _ => msm_small_rest(&scalars_and_bases, max_num_bits),
   }
 }
 
-fn msm_binary<C: CurveAffine, T: Integer + Sync>(scalars: &[T], bases: &[C]) -> C::Curve {
-  assert_eq!(scalars.len(), bases.len());
+/// Multi-scalar multiplication using the best algorithm for the given scalars.
+pub fn msm_small_zipped<C: CurveAffine, T: Integer + Into<u64> + Copy + Sync + ToPrimitive>(
+  scalars_and_bases: &[(T, C)],
+) -> C::Curve {
+  let max_num_bits = num_bits(scalars_and_bases.iter().map(|(s, _)| s).max().unwrap().to_usize().unwrap());
+  match max_num_bits {
+    0 => C::identity().into(),
+    1 => msm_binary(scalars_and_bases),
+    2..=10 => msm_10(scalars_and_bases, max_num_bits),
+    _ => msm_small_rest(scalars_and_bases, max_num_bits),
+  }
+}
+
+fn msm_binary<C: CurveAffine, T: Integer + Sync>(scalars_and_bases: &[(T, C)]) -> C::Curve {
   let num_threads = current_num_threads();
-  let process_chunk = |scalars: &[T], bases: &[C]| {
+  let process_chunk = |s_b: &[(T, C)]| {
     let mut acc = C::Curve::identity();
-    scalars
+    s_b
       .iter()
-      .zip(bases.iter())
       .filter(|(scalar, _)| (!scalar.is_zero()))
       .for_each(|(_, base)| {
         acc += *base;
@@ -165,35 +142,30 @@ fn msm_binary<C: CurveAffine, T: Integer + Sync>(scalars: &[T], bases: &[C]) -> 
     acc
   };
 
-  if scalars.len() > num_threads {
-    let chunk = scalars.len() / num_threads;
-    scalars
-      .par_chunks(chunk)
-      .zip(bases.par_chunks(chunk))
-      .map(|(scalars, bases)| process_chunk(scalars, bases))
+  if scalars_and_bases.len() > num_threads {
+    let chunk = scalars_and_bases.len() / num_threads;
+    scalars_and_bases.par_chunks(chunk)
+      .map(|s_b| process_chunk(s_b))
       .reduce(C::Curve::identity, |sum, evl| sum + evl)
   } else {
-    process_chunk(scalars, bases)
+    process_chunk(&*scalars_and_bases)
   }
 }
 
 /// MSM optimized for up to 10-bit scalars
 fn msm_10<C: CurveAffine, T: Into<u64> + Zero + Copy + Sync>(
-  scalars: &[T],
-  bases: &[C],
+  scalars_and_bases: &[(T, C)],
   max_num_bits: usize,
 ) -> C::Curve {
   fn msm_10_serial<C: CurveAffine, T: Into<u64> + Zero + Copy>(
-    scalars: &[T],
-    bases: &[C],
+    scalars_and_bases: &[(T, C)],
     max_num_bits: usize,
   ) -> C::Curve {
     let num_buckets: usize = 1 << max_num_bits;
     let mut buckets = vec![Bucket::None; num_buckets];
 
-    scalars
+    scalars_and_bases
       .iter()
-      .zip(bases.iter())
       .filter(|(scalar, _base)| !scalar.is_zero())
       .for_each(|(scalar, base)| {
         let bucket_index: u64 = (*scalar).into();
@@ -210,37 +182,34 @@ fn msm_10<C: CurveAffine, T: Into<u64> + Zero + Copy + Sync>(
   }
 
   let num_threads = current_num_threads();
-  if scalars.len() > num_threads {
-    let chunk_size = scalars.len() / num_threads;
-    scalars
+  if scalars_and_bases.len() > num_threads {
+    let chunk_size = scalars_and_bases.len() / num_threads;
+    scalars_and_bases
       .par_chunks(chunk_size)
-      .zip(bases.par_chunks(chunk_size))
-      .map(|(scalars_chunk, bases_chunk)| msm_10_serial(scalars_chunk, bases_chunk, max_num_bits))
+      .map(|chunk| msm_10_serial(chunk, max_num_bits))
       .reduce(C::Curve::identity, |sum, evl| sum + evl)
   } else {
-    msm_10_serial(scalars, bases, max_num_bits)
+    msm_10_serial(scalars_and_bases, max_num_bits)
   }
 }
 
 fn msm_small_rest<C: CurveAffine, T: Into<u64> + Zero + Copy + Sync>(
-  scalars: &[T],
-  bases: &[C],
+  scalars_and_bases: &[(T, C)],
   max_num_bits: usize,
 ) -> C::Curve {
   fn msm_small_rest_serial<C: CurveAffine, T: Into<u64> + Zero + Copy>(
-    scalars: &[T],
-    bases: &[C],
+    scalars_and_bases: &[(T, C)],
     max_num_bits: usize,
   ) -> C::Curve {
-    let c = if bases.len() < 32 {
+    let c = if scalars_and_bases.len() < 32 {
       3
     } else {
-      compute_ln(bases.len()) + 2
+      compute_ln(scalars_and_bases.len()) + 2
     };
 
     let zero = C::Curve::identity();
 
-    let scalars_and_bases_iter = scalars.iter().zip(bases).filter(|(s, _base)| !s.is_zero());
+    let scalars_and_bases_iter = scalars_and_bases.iter().filter(|(s, _base)| !s.is_zero());
     let window_starts = (0..max_num_bits).step_by(c);
 
     // Each window is of size `c`.
@@ -253,7 +222,7 @@ fn msm_small_rest<C: CurveAffine, T: Into<u64> + Zero + Copy + Sync>(
         let mut buckets = vec![zero; (1 << c) - 1];
         // This clone is cheap, because the iterator contains just a
         // pointer and an index into the original vectors.
-        scalars_and_bases_iter.clone().for_each(|(&scalar, base)| {
+        scalars_and_bases_iter.clone().for_each(|&(scalar, base)| {
           let scalar: u64 = scalar.into();
           if scalar == 1 {
             // We only process unit scalars once in the first window.
@@ -320,17 +289,14 @@ fn msm_small_rest<C: CurveAffine, T: Into<u64> + Zero + Copy + Sync>(
   }
 
   let num_threads = current_num_threads();
-  if scalars.len() > num_threads {
-    let chunk_size = scalars.len() / num_threads;
-    scalars
+  if scalars_and_bases.len() > num_threads {
+    let chunk_size = scalars_and_bases.len() / num_threads;
+    scalars_and_bases
       .par_chunks(chunk_size)
-      .zip(bases.par_chunks(chunk_size))
-      .map(|(scalars_chunk, bases_chunk)| {
-        msm_small_rest_serial(scalars_chunk, bases_chunk, max_num_bits)
-      })
+      .map(|chunk| msm_small_rest_serial(chunk, max_num_bits))
       .reduce(C::Curve::identity, |sum, evl| sum + evl)
   } else {
-    msm_small_rest_serial(scalars, bases, max_num_bits)
+    msm_small_rest_serial(scalars_and_bases, max_num_bits)
   }
 }
 
