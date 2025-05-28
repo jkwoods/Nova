@@ -40,21 +40,18 @@ impl<F: PrimeField> SparseMatrix<F> {
       new_matrix[*row].push((*col, *val));
     }
 
-    for row in new_matrix.iter() {
-      assert!(row.windows(2).all(|w| w[0].0 < w[1].0));
-    }
+    assert!(new_matrix.par_iter().all(|row| row.windows(2).all(|w| w[0].0 < w[1].0)));
 
     let mut indptr = vec![0; rows + 1];
     for (i, col) in new_matrix.iter().enumerate() {
       indptr[i + 1] = indptr[i] + col.len();
     }
 
-    let mut indices = vec![];
-    let mut data = vec![];
+    let mut indices = Vec::with_capacity(matrix.len());
+    let mut data = Vec::with_capacity(matrix.len());
     for col in new_matrix {
-      let (idx, val): (Vec<_>, Vec<_>) = col.into_iter().unzip();
-      indices.extend(idx);
-      data.extend(val);
+      indices.extend(col.iter().map(|(c, _)| *c));
+      data.extend(col.iter().map(|(_, v)| *v));
     }
 
     SparseMatrix {

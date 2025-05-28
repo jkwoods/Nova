@@ -378,13 +378,17 @@ impl<E: Engine> MemorySumcheckInstance<E> {
       assert_eq!(addr.len(), lookups.len());
       rayon::join(
         || {
-          (0..mem.len())
-            .map(|i| hash_func(&E::Scalar::from(i as u64), &mem[i]))
+          mem
+            .par_iter()
+            .enumerate()
+            .map(|(i, m)| hash_func(&E::Scalar::from(i as u64), &m))
             .collect::<Vec<E::Scalar>>()
         },
         || {
-          (0..addr.len())
-            .map(|i| hash_func(&addr[i], &lookups[i]))
+          addr
+            .par_iter()
+            .zip(&lookups)
+            .map(|(a, l)| hash_func(a, l))
             .collect::<Vec<E::Scalar>>()
         },
       )
@@ -979,9 +983,9 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARK<E, EE> {
         .collect::<Vec<Vec<E::Scalar>>>();
       assert_eq!(evals.len(), claims.len());
 
-      let evals_combined_0 = (0..evals.len()).map(|i| evals[i][0] * coeffs[i]).sum();
-      let evals_combined_2 = (0..evals.len()).map(|i| evals[i][1] * coeffs[i]).sum();
-      let evals_combined_3 = (0..evals.len()).map(|i| evals[i][2] * coeffs[i]).sum();
+      let evals_combined_0 = evals.par_iter().zip(&coeffs).map(|(e, c)| e[0] * c).sum();
+      let evals_combined_2 = evals.par_iter().zip(&coeffs).map(|(e, c)| e[1] * c).sum();
+      let evals_combined_3 = evals.par_iter().zip(&coeffs).map(|(e, c)| e[2] * c).sum();
 
       let evals = vec![
         evals_combined_0,
@@ -1193,9 +1197,10 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
           EqPolynomial::new(tau.clone()).evals(),
           Az.clone(),
           Bz.clone(),
-          (0..Cz.len())
-            .map(|i| U.u * Cz[i] + E[i])
-            .collect::<Vec<E::Scalar>>(),
+          Cz.par_iter()
+            .zip(&E)
+            .map(|(c, e)| c * U.u + e)
+            .collect::<Vec<E::Scalar>>(), // u * Cz + E
           w.p.clone(), // Mz = Az + r * Bz + r^2 * Cz
           &u.e,        // eval_Az_at_tau + r * eval_Az_at_tau + r^2 * eval_Cz_at_tau
         );

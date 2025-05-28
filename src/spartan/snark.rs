@@ -659,7 +659,7 @@ impl<E: Engine, EE: EvaluationEngineTrait<E>> RelaxedR1CSSNARKTrait<E> for Relax
       let taus_bound_r = tau.evaluate(&r);
       let sel_bound_r = polys_sel[b].evaluate(&r);
 
-      claim_final_expected += (p.u_vec[b].e * sel_bound_r * taus_bound_r * powers_of_rho[b]);
+      claim_final_expected += p.u_vec[b].e * sel_bound_r * taus_bound_r * powers_of_rho[b];
     }
 
     //assert_eq!(claim_final, claim_final_expected);

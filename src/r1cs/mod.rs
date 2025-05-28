@@ -1,3 +1,4 @@
+#![allow(nonstandard_style)]
 //! This module defines R1CS related types and a folding scheme for Relaxed R1CS
 use crate::{
   constants::{BN_LIMB_WIDTH, BN_N_LIMBS},
@@ -89,25 +90,11 @@ impl<E: Engine> R1CSShape<E> {
   ) -> Result<R1CSShape<E>, NovaError> {
     let num_vars = num_split_vars.iter().sum();
 
-    let is_valid = |num_cons: usize,
-                    num_vars: usize,
-                    num_io: usize,
-                    M: &SparseMatrix<E::Scalar>|
-     -> Result<Vec<()>, NovaError> {
-      M.iter()
-        .map(|(row, col, _val)| {
-          if row >= num_cons || col > num_io + num_vars {
-            Err(NovaError::InvalidIndex)
-          } else {
-            Ok(())
-          }
-        })
-        .collect::<Result<Vec<()>, NovaError>>()
-    };
+    let is_valid = |M: &SparseMatrix<E::Scalar>| M.iter().all(|(row, col, _)| row <= num_cons && col < num_io + num_vars);
 
-    is_valid(num_cons, num_vars, num_io, &A)?;
-    is_valid(num_cons, num_vars, num_io, &B)?;
-    is_valid(num_cons, num_vars, num_io, &C)?;
+    if !is_valid(&A) && !is_valid(&B) && !is_valid(&C) {
+      return Err(NovaError::InvalidIndex);
+    }
 
     Ok(R1CSShape {
       num_cons,
