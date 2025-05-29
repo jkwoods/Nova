@@ -47,6 +47,42 @@ where
     }
   }
 
+  /// inner kzg commit
+  pub fn inner_commit(&self, w: &[E1::Scalar]) -> (Commitment<E1>, E1::Scalar) {
+    let blind = E1::Scalar::random(&mut OsRng);
+
+    let kzg_cmt = E1::CE::commit(&self.kzg_gen, w, &blind);
+
+    (kzg_cmt, blind)
+  }
+
+  /// incremental hash
+  pub fn hash(&self, c_i: Option<E2::Scalar>, kzg_cmt: Commitment<E1>) -> E2::Scalar {
+    let mut cc = E1::RO::new(self.pos_constants.clone());
+
+    if c_i.is_none() {
+      cc.absorb(E2::Scalar::ZERO);
+    } else {
+      cc.absorb(c_i.unwrap());
+    }
+
+    let kzg_coords = kzg_cmt.to_coordinates();
+    //println!("x {:#?}", kzg_coords.0);
+
+    cc.absorb(kzg_coords.0);
+    cc.absorb(kzg_coords.1);
+    cc.absorb(if kzg_coords.2 {
+      E2::Scalar::ONE
+    } else {
+      E2::Scalar::ZERO
+    });
+
+    let cc_hash = cc.squeeze(NUM_HASH_BITS);
+    //println!("hash in clear {:#?}", scalar_as_base::<E1>(cc_hash));
+
+    cc_hash
+  }
+
   /// commit incrementally to chunk of list
   pub fn commit(&self, c_i: Option<E2::Scalar>, w: &[E1::Scalar]) -> (E2::Scalar, E1::Scalar) {
     let mut cc = E1::RO::new(self.pos_constants.clone());
