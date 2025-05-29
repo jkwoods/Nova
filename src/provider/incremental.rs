@@ -57,7 +57,7 @@ where
   }
 
   /// incremental hash
-  pub fn hash(&self, c_i: Option<E2::Scalar>, kzg_cmt: Commitment<E1>) -> E2::Scalar {
+  pub fn hash(&self, c_i: Option<E2::Scalar>, kzg_cmt: &Commitment<E1>) -> E2::Scalar {
     let mut cc = E1::RO::new(self.pos_constants.clone());
 
     if c_i.is_none() {
