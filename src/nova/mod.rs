@@ -644,10 +644,6 @@ where
 {
   pk_primary: S1::ProverKey,
   pk_secondary: S2::ProverKey,
-  random_layer: (
-    (RelaxedR1CSInstance<E2>, RelaxedR1CSWitness<E2>),
-    (RelaxedR1CSInstance<E1>, RelaxedR1CSWitness<E1>),
-  ),
   _p: PhantomData<C>,
 }
 
@@ -730,7 +726,6 @@ where
       pk_primary,
       pk_secondary,
       _p: Default::default(),
-      random_layer: Self::sample_random_layer(&pp)?,
     };
 
     let vk = VerifierKey {
@@ -748,7 +743,8 @@ where
     Ok((pk, vk))
   }
 
-  fn sample_random_layer(
+  /// Samples randomizing layer
+  pub fn sample_random_layer(
     pp: &PublicParams<E1, E2, C>,
   ) -> Result<
     (
@@ -776,6 +772,10 @@ where
     pp: &PublicParams<E1, E2, C>,
     pk: &ProverKey<E1, E2, C, S1, S2>,
     recursive_snark: &RecursiveSNARK<E1, E2, C>,
+    random_layer: (
+      (RelaxedR1CSInstance<E2>, RelaxedR1CSWitness<E2>),
+      (RelaxedR1CSInstance<E1>, RelaxedR1CSWitness<E1>),
+    ),
   ) -> Result<Self, NovaError> {
     // prove three foldings
 
@@ -801,7 +801,7 @@ where
       },
     )*/
 
-    let ((l_ur_secondary, l_wr_secondary), (l_ur_primary, l_wr_primary)) = &pk.random_layer;
+    let ((l_ur_secondary, l_wr_secondary), (l_ur_primary, l_wr_primary)) = random_layer;
 
     // fold Uf/Wf with random inst/wit to get U1/W1
     // fold primary U/W with random inst/wit to get U2/W2
@@ -1331,7 +1331,14 @@ mod tests {
     let (pk, vk) = CompressedSNARK::<_, _, _, S<E1, EE1>, S<E2, EE2>>::setup(&pp).unwrap();
 
     // produce a compressed SNARK
-    let res = CompressedSNARK::<_, _, _, S<E1, EE1>, S<E2, EE2>>::prove(&pp, &pk, &recursive_snark);
+    let random_layer =
+      CompressedSNARK::<_, _, _, S<E1, EE1>, S<E2, EE2>>::sample_random_layer(&pp).unwrap();
+    let res = CompressedSNARK::<_, _, _, S<E1, EE1>, S<E2, EE2>>::prove(
+      &pp,
+      &pk,
+      &recursive_snark,
+      random_layer,
+    );
     assert!(res.is_ok());
     let compressed_snark = res.unwrap();
 
@@ -1543,7 +1550,14 @@ mod tests {
     let (pk, vk) = CompressedSNARK::<_, _, _, S<E1, EE1>, S<E2, EE2>>::setup(&pp).unwrap();
 
     // produce a compressed SNARK
-    let res = CompressedSNARK::<_, _, _, S<E1, EE1>, S<E2, EE2>>::prove(&pp, &pk, &recursive_snark);
+    let random_layer =
+      CompressedSNARK::<_, _, _, S<E1, EE1>, S<E2, EE2>>::sample_random_layer(&pp).unwrap();
+    let res = CompressedSNARK::<_, _, _, S<E1, EE1>, S<E2, EE2>>::prove(
+      &pp,
+      &pk,
+      &recursive_snark,
+      random_layer,
+    );
     assert!(res.is_ok());
     let compressed_snark = res.unwrap();
 

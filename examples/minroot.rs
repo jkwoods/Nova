@@ -241,7 +241,8 @@ fn main() {
 
     let start = Instant::now();
 
-    let res = CompressedSNARK::<_, _, _, S1, S2>::prove(&pp, &pk, &recursive_snark);
+    let random_layer = CompressedSNARK::<_, _, _, S1, S2>::sample_random_layer(&pp).unwrap();
+    let res = CompressedSNARK::<_, _, _, S1, S2>::prove(&pp, &pk, &recursive_snark, random_layer);
     println!(
       "CompressedSNARK::prove: {:?}, took {:?}",
       res.is_ok(),

@@ -461,7 +461,7 @@ where
     //Self::CommitmentKey::setup_from_rng(label, n, OsRng)
 
     // from ppot file
-    let mut reader = BufReader::new(std::fs::File::open("./ppot_0080_20.ptau").unwrap());
+    let mut reader = BufReader::new(std::fs::File::open("./ppot_0080_25.ptau").unwrap());
 
     let ck: CommitmentKey<E> = CommitmentEngine::load_setup(&mut reader, b"ppot", n).unwrap();
     ck
