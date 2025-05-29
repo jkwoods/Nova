@@ -631,6 +631,12 @@ where
   }
 }
 
+/// Type that holds random layer
+pub type RandomLayer<E1, E2> = (
+  (RelaxedR1CSInstance<E2>, RelaxedR1CSWitness<E2>),
+  (RelaxedR1CSInstance<E1>, RelaxedR1CSWitness<E1>),
+);
+
 /// A type that holds the prover key for `CompressedSNARK`
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
@@ -746,13 +752,7 @@ where
   /// Samples randomizing layer
   pub fn sample_random_layer(
     pp: &PublicParams<E1, E2, C>,
-  ) -> Result<
-    (
-      (RelaxedR1CSInstance<E2>, RelaxedR1CSWitness<E2>),
-      (RelaxedR1CSInstance<E1>, RelaxedR1CSWitness<E1>),
-    ),
-    NovaError,
-  > {
+  ) -> Result<RandomLayer<E1, E2>, NovaError> {
     let (rand_sec_res, rand_prim_res) = rayon::join(
       || {
         pp.r1cs_shape_secondary
@@ -772,10 +772,7 @@ where
     pp: &PublicParams<E1, E2, C>,
     pk: &ProverKey<E1, E2, C, S1, S2>,
     recursive_snark: &RecursiveSNARK<E1, E2, C>,
-    random_layer: (
-      (RelaxedR1CSInstance<E2>, RelaxedR1CSWitness<E2>),
-      (RelaxedR1CSInstance<E1>, RelaxedR1CSWitness<E1>),
-    ),
+    random_layer: RandomLayer<E1, E2>,
   ) -> Result<Self, NovaError> {
     // prove three foldings
 

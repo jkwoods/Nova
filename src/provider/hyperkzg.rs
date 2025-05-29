@@ -458,7 +458,7 @@ where
 
   fn setup(label: &'static [u8], n: usize) -> Self::CommitmentKey {
     // NOTE: this is for testing purposes and should not be used in production
-    //Self::CommitmentKey::setup_from_rng(label, n, OsRng)
+    // Self::CommitmentKey::setup_from_rng(label, n, OsRng)
 
     // from ppot file
     let mut reader = BufReader::new(std::fs::File::open("./ppot_0080_25.ptau").unwrap());
