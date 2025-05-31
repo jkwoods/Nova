@@ -68,6 +68,6 @@ name = "commit"
 harness = false
 
 [features]
-default = []
+default = ["halo2curves/asm"]
 flamegraph = ["pprof2/flamegraph", "pprof2/criterion"]
 experimental = []

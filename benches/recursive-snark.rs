@@ -62,7 +62,7 @@ fn bench_recursive_snark(c: &mut Criterion) {
 
     // Produce public parameters
     let pp =
-      PublicParams::<E1, E2, C>::setup(&mut c, &*default_ck_hint(), &*default_ck_hint(), vec![],0)
+      PublicParams::<E1, E2, C>::setup(&mut c, &*default_ck_hint(), &*default_ck_hint(), vec![])
         .unwrap();
 
     // Bench time to produce a recursive SNARK;
@@ -77,12 +77,11 @@ fn bench_recursive_snark(c: &mut Criterion) {
       None,
       vec![],
       vec![],
-      0,
     )
     .unwrap();
 
     for i in 0..num_warmup_steps {
-      let res = recursive_snark.prove_step(&pp, &mut c, None, vec![], vec![], 0);
+      let res = recursive_snark.prove_step(&pp, &mut c, None, vec![], vec![]);
       assert!(res.is_ok());
 
       // verify the recursive snark at each step of recursion
@@ -99,8 +98,7 @@ fn bench_recursive_snark(c: &mut Criterion) {
             black_box(&mut c),
             black_box(None),
             black_box(vec![]),
-            black_box(vec![]),
-            black_box(0),
+            black_box(vec![])
           )
           .is_ok());
       })

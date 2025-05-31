@@ -154,7 +154,6 @@ fn bench_recursive_snark(c: &mut Criterion) {
       &*default_ck_hint(),
       &*default_ck_hint(),
       vec![],
-      0
     )
     .unwrap();
 
@@ -168,7 +167,6 @@ fn bench_recursive_snark(c: &mut Criterion) {
           black_box(None),
           black_box(vec![]),
           black_box(vec![]),
-          black_box(0),
         )
         .unwrap();
 
@@ -179,8 +177,7 @@ fn bench_recursive_snark(c: &mut Criterion) {
             black_box(&mut circuit),
             black_box(None),
             black_box(vec![]),
-            black_box(vec![]),
-            black_box(0),
+            black_box(vec![])
           )
           .is_ok());
       })
