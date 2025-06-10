@@ -3,7 +3,7 @@
 use ff::{PrimeField, PrimeFieldBits};
 use serde::{Deserialize, Serialize};
 
-use crate::frontend::{ConstraintSystem, LinearCombination, SynthesisError, Variable};
+use crate::frontend::{ConstraintSystem, Index, LinearCombination, SynthesisError, Variable};
 
 use crate::frontend::gadgets::boolean::{self, AllocatedBit, Boolean};
 
@@ -45,6 +45,34 @@ impl<Scalar: PrimeField> AllocatedNum<Scalar> {
     Ok(AllocatedNum {
       value: new_value,
       variable: var,
+    })
+  }
+  
+  pub fn alloc_batch<'a, CS, F>(
+    mut cs: CS,
+    values: F,
+  ) -> Result<Vec<Self>, SynthesisError>
+  where
+    CS: ConstraintSystem<Scalar>,
+    F: FnOnce() -> Result<&'a [Scalar], SynthesisError>,
+  {
+    values().and_then(|values| {
+      if cs.is_witness_generator() {
+        let start = cs.aux_slice().len();
+        cs.extend_aux(values);
+        let batch = (start..(start + values.len()))
+          .zip(values)
+          .map(|(i, value)| AllocatedNum {
+            value: Some(*value),
+            variable: Variable(Index::Aux(i)),
+          })
+          .collect();
+        Ok(batch)
+      } else {
+        values.iter().map(|value| {
+          Self::alloc(cs.namespace(|| "num"), || Ok(*value))
+        }).collect::<Result<Vec<_>, SynthesisError>>()
+      }
     })
   }
 
