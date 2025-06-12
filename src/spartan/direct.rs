@@ -22,6 +22,7 @@ use crate::{
 use core::marker::PhantomData;
 use ff::Field;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 /// A direct circuit that can be synthesized
 pub struct DirectCircuit<E: Engine, SC: StepCircuit<E::Scalar>> {
@@ -117,14 +118,14 @@ where
 
 impl<E: Engine, S: RelaxedR1CSSNARKTrait<E>, C: StepCircuit<E::Scalar>> DirectSNARK<E, S, C> {
   /// Produces prover and verifier keys for the direct SNARK
-  pub fn setup(sc: C) -> Result<(ProverKey<E, S>, VerifierKey<E, S>), NovaError> {
+  pub fn setup<P: AsRef<Path>>(sc: C) -> Result<(ProverKey<E, S>, VerifierKey<E, S>), NovaError> {
     // construct a circuit that can be synthesized
     let circuit: DirectCircuit<E, C> = DirectCircuit { z_i: None, sc };
 
     let mut cs: ShapeCS<E> = ShapeCS::new();
     let _ = circuit.synthesize(&mut cs);
 
-    let (shape, ck) = cs.r1cs_shape(&*S::ck_floor(), vec![]);
+    let (shape, ck) = cs.r1cs_shape::<P>(&*S::ck_floor(), vec![], None);
 
     let (pk, vk) = S::setup(&ck, &shape)?;
 
@@ -207,6 +208,7 @@ mod tests {
   };
   use core::marker::PhantomData;
   use ff::PrimeField;
+  use std::path::PathBuf;
 
   #[derive(Clone, Debug, Default)]
   struct CubicCircuit<F: PrimeField> {
@@ -288,7 +290,8 @@ mod tests {
 
     // produce keys
     let (pk, vk) =
-      DirectSNARK::<E, S, CubicCircuit<<E as Engine>::Scalar>>::setup(circuit.clone()).unwrap();
+      DirectSNARK::<E, S, CubicCircuit<<E as Engine>::Scalar>>::setup::<PathBuf>(circuit.clone())
+        .unwrap();
 
     let num_steps = 3;
 

@@ -10,6 +10,7 @@ use nova_snark::{
   traits::{circuit::StepCircuit, snark::RelaxedR1CSSNARKTrait, Engine, Group},
 };
 use num_bigint::BigUint;
+use std::path::PathBuf;
 use std::time::Instant;
 
 type E1 = Bn256EngineKZG;
@@ -159,11 +160,12 @@ fn main() {
     // produce public parameters
     let start = Instant::now();
     println!("Producing public parameters...");
-    let pp = PublicParams::<E1, E2, MinRootCircuit<<E1 as Engine>::GE>>::setup(
+    let pp = PublicParams::<E1, E2, MinRootCircuit<<E1 as Engine>::GE>>::setup::<PathBuf>(
       &mut circuit,
       &*S1::ck_floor(),
       &*S2::ck_floor(),
       vec![],
+      None,
     )
     .unwrap();
     println!("PublicParams::setup, took {:?} ", start.elapsed());

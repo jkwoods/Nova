@@ -219,6 +219,7 @@ mod tests {
   };
   use ff::{Field, PrimeField};
   use rand::rngs::OsRng;
+  use std::path::PathBuf;
 
   fn synthesize_tiny_r1cs_bellpepper<Scalar: PrimeField, CS: ConstraintSystem<Scalar>>(
     cs: &mut CS,
@@ -257,7 +258,7 @@ mod tests {
     // First create the shape
     let mut cs: TestShapeCS<E> = TestShapeCS::new();
     let _ = synthesize_tiny_r1cs_bellpepper(&mut cs, None);
-    let (shape, ck) = cs.r1cs_shape(&*default_ck_hint(), vec![]);
+    let (shape, ck) = cs.r1cs_shape::<PathBuf>(&*default_ck_hint(), vec![], None);
     let ro_consts = ROConstants::<E>::default();
 
     // Now get the instance and assignment for one instance
@@ -500,7 +501,7 @@ mod tests {
     };
 
     // generate generators and ro constants
-    let ck = S.commitment_key(&*default_ck_hint());
+    let ck = S.commitment_key::<PathBuf>(&*default_ck_hint(), None);
     let ro_consts = ROConstants::<E>::default();
 
     let rand_inst_witness_generator =
@@ -640,7 +641,7 @@ mod tests {
     };
 
     // generate generators and ro constants
-    let ck = S.commitment_key(&*default_ck_hint());
+    let ck = S.commitment_key::<PathBuf>(&*default_ck_hint(), None);
     let ro_consts = ROConstants::<E>::default();
 
     let rand_inst_witness_generator =

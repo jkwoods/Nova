@@ -28,6 +28,7 @@ use ff::Field;
 use once_cell::sync::OnceCell;
 use rand_core::OsRng;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 mod circuit;
 pub(crate) mod nifs;
@@ -115,13 +116,14 @@ where
   /// let ck_hint1 = &*SPrime::<E1>::ck_floor();
   /// let ck_hint2 = &*SPrime::<E2>::ck_floor();
   ///
-  /// PublicParams::setup(&circuit, ck_hint1, ck_hint2);
+  /// PublicParams::setup::<P>(&circuit, ck_hint1, ck_hint2);
   /// ```
-  pub fn setup(
+  pub fn setup<P: AsRef<Path>>(
     c: &mut C,
     ck_hint1: &CommitmentKeyHint<E1>,
     ck_hint2: &CommitmentKeyHint<E2>,
     ram_batch_sizes: Vec<usize>,
+    ppot_path: Option<P>,
   ) -> Result<Self, NovaError> {
     let ro_consts_primary: ROConstants<E1> = ROConstants::<E1>::default();
     let ro_consts_secondary: ROConstants<E2> = ROConstants::<E2>::default();
@@ -143,7 +145,8 @@ where
     );
     let mut cs: ShapeCS<E1> = ShapeCS::new();
     let _ = circuit_primary.synthesize(&mut cs);
-    let (r1cs_shape_primary, ck_primary) = cs.r1cs_shape(ck_hint1, ram_batch_sizes.clone());
+    let (r1cs_shape_primary, ck_primary) =
+      cs.r1cs_shape(ck_hint1, ram_batch_sizes.clone(), ppot_path);
 
     // Initialize ck for the secondary
     let mut tc = TrivialCircuit::<E2::Scalar>::default();
@@ -157,7 +160,7 @@ where
     );
     let mut cs: ShapeCS<E2> = ShapeCS::new();
     let _ = circuit_secondary.synthesize(&mut cs);
-    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape(ck_hint2, vec![]);
+    let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape::<P>(ck_hint2, vec![], None);
 
     if r1cs_shape_primary.num_io != 2 || r1cs_shape_secondary.num_io != 2 {
       return Err(NovaError::InvalidStepCircuitIO);
@@ -1069,6 +1072,7 @@ mod tests {
   use core::{fmt::Write, marker::PhantomData};
   use expect_test::{expect, Expect};
   use ff::PrimeField;
+  use std::path::PathBuf;
 
   type EE<E> = crate::provider::ipa_pc::EvaluationEngine<E>;
   type EEPrime<E> = crate::provider::hyperkzg::EvaluationEngine<E>;
@@ -1177,11 +1181,12 @@ mod tests {
     let mut test_circuit = TrivialCircuit::<<E1 as Engine>::Scalar>::default();
 
     // produce public parameters
-    let pp = PublicParams::<E1, E2, TrivialCircuit<<E1 as Engine>::Scalar>>::setup(
+    let pp = PublicParams::<E1, E2, TrivialCircuit<<E1 as Engine>::Scalar>>::setup::<PathBuf>(
       &mut test_circuit,
       &*default_ck_hint(),
       &*default_ck_hint(),
       vec![],
+      None,
     )
     .unwrap();
 
@@ -1222,11 +1227,12 @@ mod tests {
     let mut circuit = CubicCircuit::default();
 
     // produce public parameters
-    let pp = PublicParams::<E1, E2, CubicCircuit<E1::Scalar>>::setup(
+    let pp = PublicParams::<E1, E2, CubicCircuit<E1::Scalar>>::setup::<PathBuf>(
       &mut circuit,
       &*default_ck_hint(),
       &*default_ck_hint(),
       vec![],
+      None,
     )
     .unwrap();
 
@@ -1284,11 +1290,12 @@ mod tests {
     let mut circuit = CubicCircuit::default();
 
     // produce public parameters
-    let pp = PublicParams::<E1, E2, CubicCircuit<<E1 as Engine>::Scalar>>::setup(
+    let pp = PublicParams::<E1, E2, CubicCircuit<<E1 as Engine>::Scalar>>::setup::<PathBuf>(
       &mut circuit,
       &*default_ck_hint(),
       &*default_ck_hint(),
       vec![],
+      None,
     )
     .unwrap();
 
@@ -1506,13 +1513,15 @@ mod tests {
     };
 
     // produce public parameters
-    let pp = PublicParams::<E1, E2, FifthRootCheckingCircuit<<E1 as Engine>::Scalar>>::setup(
-      &mut circuit,
-      &*default_ck_hint(),
-      &*default_ck_hint(),
-      vec![],
-    )
-    .unwrap();
+    let pp =
+      PublicParams::<E1, E2, FifthRootCheckingCircuit<<E1 as Engine>::Scalar>>::setup::<PathBuf>(
+        &mut circuit,
+        &*default_ck_hint(),
+        &*default_ck_hint(),
+        vec![],
+        None,
+      )
+      .unwrap();
 
     let num_steps = 3;
 
@@ -1578,11 +1587,12 @@ mod tests {
     let mut test_circuit1 = CubicCircuit::<<E1 as Engine>::Scalar>::default();
 
     // produce public parameters
-    let pp = PublicParams::<E1, E2, CubicCircuit<<E1 as Engine>::Scalar>>::setup(
+    let pp = PublicParams::<E1, E2, CubicCircuit<<E1 as Engine>::Scalar>>::setup::<PathBuf>(
       &mut test_circuit1,
       &*default_ck_hint(),
       &*default_ck_hint(),
       vec![],
+      None,
     )
     .unwrap();
 
@@ -1649,21 +1659,23 @@ mod tests {
 
     // produce public parameters with trivial secondary
     let mut circuit = CircuitWithInputize::<<E1 as Engine>::Scalar>::default();
-    let pp = PublicParams::<E1, E2, CircuitWithInputize<E1::Scalar>>::setup(
+    let pp = PublicParams::<E1, E2, CircuitWithInputize<E1::Scalar>>::setup::<PathBuf>(
       &mut circuit,
       &*default_ck_hint(),
       &*default_ck_hint(),
       vec![],
+      None,
     );
     assert!(pp.is_err());
     assert_eq!(pp.err(), Some(NovaError::InvalidStepCircuitIO));
 
     let mut circuit = CircuitWithInputize::<E1::Scalar>::default();
-    let pp = PublicParams::<E1, E2, CircuitWithInputize<E1::Scalar>>::setup(
+    let pp = PublicParams::<E1, E2, CircuitWithInputize<E1::Scalar>>::setup::<PathBuf>(
       &mut circuit,
       &*default_ck_hint(),
       &*default_ck_hint(),
       vec![],
+      None,
     );
     assert!(pp.is_err());
     assert_eq!(pp.err(), Some(NovaError::InvalidStepCircuitIO));

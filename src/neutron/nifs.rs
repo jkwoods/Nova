@@ -560,7 +560,7 @@ mod benchmarks {
     let S = S.pad();
 
     // sample a ck
-    let ck = S.commitment_key(&*default_ck_hint());
+    let ck = S.commitment_key(&*default_ck_hint(), None);
 
     // let witness be randomly generated booleans
     let w = (0..S.num_cons)

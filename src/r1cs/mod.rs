@@ -21,6 +21,7 @@ use rand_chacha::{ChaCha20Core, ChaCha20Rng};
 use rand_core::{OsRng, RngCore, SeedableRng};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::{io::BufReader, path::Path};
 
 mod sparse;
 pub(crate) use sparse::SparseMatrix;
@@ -122,11 +123,22 @@ impl<E: Engine> R1CSShape<E> {
   /// * `ck_floor`: A function that provides a floor for the number of generators. A good function
   ///   to provide is the ck_floor field defined in the trait `RelaxedR1CSSNARKTrait`.
   ///
-  pub fn commitment_key(&self, ck_floor: &CommitmentKeyHint<E>) -> CommitmentKey<E> {
+  pub fn commitment_key<P: AsRef<Path>>(
+    &self,
+    ck_floor: &CommitmentKeyHint<E>,
+    path: Option<P>,
+  ) -> CommitmentKey<E> {
     let num_cons = self.num_cons;
     let num_vars = self.num_vars;
     let ck_hint = ck_floor(self);
-    E::CE::setup(b"ck", max(max(num_cons, num_vars), ck_hint))
+
+    let key_len = max(max(num_cons, num_vars), ck_hint);
+    if path.is_some() {
+      let mut reader = BufReader::new(std::fs::File::open(path.unwrap()).unwrap());
+      E::CE::load_setup(&mut reader, b"ppot", key_len).unwrap()
+    } else {
+      E::CE::setup(b"ck", key_len)
+    }
   }
 
   /// returned the digest of the `R1CSShape`
@@ -1040,6 +1052,7 @@ mod tests {
     r1cs::sparse::SparseMatrix,
     traits::{snark::default_ck_hint, Engine},
   };
+  use std::path::PathBuf;
 
   fn tiny_r1cs<E: Engine>(num_vars: usize) -> R1CSShape<E> {
     let one = <E::Scalar as Field>::ONE;
@@ -1125,7 +1138,7 @@ mod tests {
 
   fn test_random_sample_with<E: Engine>() {
     let S = tiny_r1cs::<E>(4);
-    let ck = S.commitment_key(&*default_ck_hint());
+    let ck = S.commitment_key::<PathBuf>(&*default_ck_hint(), None);
     let (inst, wit) = S.sample_random_instance_witness(&ck).unwrap();
     assert!(S.is_sat_relaxed(&ck, &inst, &wit).is_ok());
   }

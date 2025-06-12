@@ -873,6 +873,7 @@ mod tests {
   use ff::{Field, PrimeFieldBits};
   use halo2curves::{group::Curve, CurveAffine};
   use rand::rngs::OsRng;
+  use std::path::PathBuf;
 
   #[derive(Debug, Clone)]
   pub struct Point<E: Engine> {
@@ -1108,7 +1109,7 @@ mod tests {
     let mut cs: TestShapeCS<E2> = TestShapeCS::new();
     let _ = synthesize_smul::<E1, _>(cs.namespace(|| "synthesize"));
     println!("Number of constraints: {}", cs.num_constraints());
-    let (shape, ck) = cs.r1cs_shape(&*default_ck_hint(), vec![]);
+    let (shape, ck) = cs.r1cs_shape::<PathBuf>(&*default_ck_hint(), vec![], None);
 
     // Then the satisfying assignment
     let mut cs = SatisfyingAssignment::<E2>::new();
@@ -1164,7 +1165,7 @@ mod tests {
     let mut cs: TestShapeCS<E2> = TestShapeCS::new();
     let _ = synthesize_add_equal::<E1, _>(cs.namespace(|| "synthesize add equal"));
     println!("Number of constraints: {}", cs.num_constraints());
-    let (shape, ck) = cs.r1cs_shape(&*default_ck_hint(), vec![]);
+    let (shape, ck) = cs.r1cs_shape::<PathBuf>(&*default_ck_hint(), vec![], None);
 
     // Then the satisfying assignment
     let mut cs = SatisfyingAssignment::<E2>::new();
@@ -1225,7 +1226,7 @@ mod tests {
     let mut cs: TestShapeCS<E2> = TestShapeCS::new();
     let _ = synthesize_add_negation::<E1, _>(cs.namespace(|| "synthesize add equal"));
     println!("Number of constraints: {}", cs.num_constraints());
-    let (shape, ck) = cs.r1cs_shape(&*default_ck_hint(), vec![]);
+    let (shape, ck) = cs.r1cs_shape::<PathBuf>(&*default_ck_hint(), vec![], None);
 
     // Then the satisfying assignment
     let mut cs = SatisfyingAssignment::<E2>::new();

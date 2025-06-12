@@ -40,6 +40,7 @@ mod tests {
     traits::{snark::default_ck_hint, Engine},
   };
   use ff::PrimeField;
+  use std::path::PathBuf;
 
   fn synthesize_alloc_bit<Fr: PrimeField, CS: ConstraintSystem<Fr>>(cs: &mut CS) {
     // get two bits as input and check that they are indeed bits
@@ -65,7 +66,7 @@ mod tests {
     // First create the shape
     let mut cs: ShapeCS<E> = ShapeCS::new();
     synthesize_alloc_bit(&mut cs);
-    let (shape, ck) = cs.r1cs_shape(&*default_ck_hint(), vec![]);
+    let (shape, ck) = cs.r1cs_shape::<PathBuf>(&*default_ck_hint(), vec![], None);
 
     // Now get the assignment
     let mut cs = SatisfyingAssignment::<E>::new();

@@ -12,6 +12,7 @@ use crate::{
 };
 use ff::{Field, PrimeField};
 use rand_core::OsRng;
+use std::path::Path;
 
 /// `NovaWitness` provide a method for acquiring an `R1CSInstance` and `R1CSWitness` from implementers.
 pub trait NovaWitness<E: Engine> {
@@ -29,10 +30,11 @@ pub trait NovaShape<E: Engine> {
   /// Return an appropriate `R1CSShape` and `CommitmentKey` structs.
   /// A `CommitmentKeyHint` should be provided to help guide the construction of the `CommitmentKey`.
   /// This parameter is documented in `r1cs::R1CS::commitment_key`.
-  fn r1cs_shape(
+  fn r1cs_shape<P: AsRef<Path>>(
     &self,
     ck_hint: &CommitmentKeyHint<E>,
     ram_batch_sizes: Vec<usize>,
+    path: Option<P>,
   ) -> (R1CSShape<E>, CommitmentKey<E>);
 }
 
@@ -81,10 +83,11 @@ macro_rules! impl_nova_shape {
     where
       E::Scalar: PrimeField,
     {
-      fn r1cs_shape(
+      fn r1cs_shape<P: AsRef<Path>>(
         &self,
         ck_hint: &CommitmentKeyHint<E>,
         ram_batch_sizes: Vec<usize>,
+        path: Option<P>,
       ) -> (R1CSShape<E>, CommitmentKey<E>) {
         let mut A = SparseMatrix::<E::Scalar>::empty();
         let mut B = SparseMatrix::<E::Scalar>::empty();
@@ -117,7 +120,7 @@ macro_rules! impl_nova_shape {
 
         // Don't count One as an input for shape's purposes.
         let S = R1CSShape::new(num_constraints, num_vars, num_inputs - 1, A, B, C).unwrap();
-        let ck = S.commitment_key(ck_hint);
+        let ck = S.commitment_key(ck_hint, path);
 
         (S, ck)
       }
