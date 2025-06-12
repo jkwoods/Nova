@@ -14,7 +14,7 @@ use crate::{
 };
 use ff::Field;
 use rand_core::OsRng;
-use std::marker::PhantomData;
+use std::{io::BufReader, marker::PhantomData, path::Path};
 
 /// Incremental Commitment Scheme Generators
 pub struct Incremental<E1: Engine, E2: Engine>
@@ -36,8 +36,13 @@ where
   E2: Engine<Base = <E1 as Engine>::Scalar>,
 {
   /// setup
-  pub fn setup(key_len: usize) -> Self {
-    let kzg_gen = E1::CE::setup(b"ck", key_len);
+  pub fn setup<P: AsRef<Path>>(key_len: usize, path: P) -> Self {
+    // from ppot file
+    let mut reader = BufReader::new(std::fs::File::open(path).unwrap());
+
+    let kzg_gen: CommitmentKey<E1> = E1::CE::load_setup(&mut reader, b"ppot", key_len).unwrap();
+
+    //let kzg_gen = E1::CE::setup(b"ck", key_len);
     let pos_constants: ROConstants<E1> = ROConstants::<E1>::default();
 
     Incremental::<E1, E2> {
