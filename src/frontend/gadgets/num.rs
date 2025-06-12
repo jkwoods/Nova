@@ -47,11 +47,9 @@ impl<Scalar: PrimeField> AllocatedNum<Scalar> {
       variable: var,
     })
   }
-  
-  pub fn alloc_batch<'a, CS, F>(
-    mut cs: CS,
-    values: F,
-  ) -> Result<Vec<Self>, SynthesisError>
+
+  /// Allocated a batch of Variables in a ConstraintSystem
+  pub fn alloc_batch<'a, CS, F>(mut cs: CS, values: F) -> Result<Vec<Self>, SynthesisError>
   where
     CS: ConstraintSystem<Scalar>,
     F: FnOnce() -> Result<&'a [Scalar], SynthesisError>,
@@ -69,9 +67,10 @@ impl<Scalar: PrimeField> AllocatedNum<Scalar> {
           .collect();
         Ok(batch)
       } else {
-        values.iter().map(|value| {
-          Self::alloc(cs.namespace(|| "num"), || Ok(*value))
-        }).collect::<Result<Vec<_>, SynthesisError>>()
+        values
+          .iter()
+          .map(|value| Self::alloc(cs.namespace(|| "num"), || Ok(*value)))
+          .collect::<Result<Vec<_>, SynthesisError>>()
       }
     })
   }
