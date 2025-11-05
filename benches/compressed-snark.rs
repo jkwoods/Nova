@@ -35,7 +35,7 @@ cfg_if::cfg_if! {
     criterion_group! {
       name = compressed_snark;
       config = Criterion::default().warm_up_time(Duration::from_millis(3000));
-      targets = bench_compressed_snark, bench_compressed_snark_with_computational_commitments,
+      targets = bench_compressed_snark, //bench_compressed_snark_with_computational_commitments,
     }
   }
 }
@@ -110,10 +110,10 @@ fn bench_compressed_snark(c: &mut Criterion) {
   // we vary the number of constraints in the step circuit
   for &num_cons_in_augmented_circuit in [
     NUM_CONS_VERIFIER_CIRCUIT,
-    16384,
-    32768,
-    65536,
-    131072,
+    //    16384,
+    //    32768,
+    //    65536,
+    //    131072,
     262144,
     524288,
     1048576,
@@ -131,7 +131,7 @@ fn bench_compressed_snark(c: &mut Criterion) {
     group.finish();
   }
 }
-
+/*
 fn bench_compressed_snark_with_computational_commitments(c: &mut Criterion) {
   // we vary the number of constraints in the step circuit
   for &num_cons_in_augmented_circuit in [
@@ -158,4 +158,4 @@ fn bench_compressed_snark_with_computational_commitments(c: &mut Criterion) {
 
     group.finish();
   }
-}
+}*/

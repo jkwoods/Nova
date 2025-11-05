@@ -347,6 +347,21 @@ impl<E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'_, E, SC> {
       &r_next,
     )?;
 
+    let mut dummy = hash.clone();
+    if !self.is_primary_circuit {
+      for ii in 0..5 {
+        dummy = self.synthesize_hash_check(
+          cs.namespace(|| format!("synthesize output hash check {:#?}", ii)),
+          &dummy,
+          &i_new,
+          &z_0,
+          &z_next,
+          &Unew,
+          &r_next,
+        )?;
+      }
+    }
+
     // Outputs the computed hash and u.X[1] that corresponds to the hash of the other circuit
     u.X1
       .inputize(cs.namespace(|| "Output unmodified hash of the other circuit"))?;

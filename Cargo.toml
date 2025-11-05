@@ -47,29 +47,29 @@ proptest = "1.6.0"
 rand = "0.8.5"
 expect-test = "1.5.1"
 
-[[bench]]
-name = "recursive-snark"
-harness = false
+#[[bench]]
+#name = "recursive-snark"
+#harness = false
 
 [[bench]]
 name = "compressed-snark"
 harness = false
 
-[[bench]]
-name = "sha256"
-harness = false
+#[[bench]]
+#name = "sha256"
+#harness = false
 
-[[bench]]
-name = "ppsnark"
-harness = false
+#[[bench]]
+#name = "ppsnark"
+#harness = false
 
-[[bench]]
-name = "commit"
-harness = false
+#[[bench]]
+#name = "commit"
+#harness = false
 
-[[bench]]
-name = "sumcheckeq"
-harness = false
+#[[bench]]
+#name = "sumcheckeq"
+#harness = false
 
 [features]
 default = ["halo2curves/asm"]
