@@ -149,6 +149,7 @@ where
       NovaAugmentedCircuit::new(false, None, &tc, ro_consts_circuit_secondary.clone());
     let mut cs: ShapeCS<E2> = ShapeCS::new();
     let _ = circuit_secondary.synthesize(&mut cs);
+    println!("NUM SECONDARY CONSTRAINTS {:#?}", cs.num_constraints());
     let (r1cs_shape_secondary, ck_secondary) = cs.r1cs_shape(ck_hint2);
 
     if r1cs_shape_primary.num_io != 2 || r1cs_shape_secondary.num_io != 2 {

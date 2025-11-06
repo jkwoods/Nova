@@ -27,6 +27,8 @@ use serde::{Deserialize, Serialize};
 mod r1cs;
 use r1cs::{AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance};
 
+const EXTRA_R1CS: bool = true;
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct NovaAugmentedCircuitInputs<E: Engine> {
@@ -348,17 +350,19 @@ impl<E: Engine, SC: StepCircuit<E::Base>> NovaAugmentedCircuit<'_, E, SC> {
     )?;
 
     let mut dummy = hash.clone();
-    if !self.is_primary_circuit {
-      for ii in 0..5 {
-        dummy = self.synthesize_hash_check(
-          cs.namespace(|| format!("synthesize output hash check {:#?}", ii)),
-          &dummy,
-          &i_new,
-          &z_0,
-          &z_next,
-          &Unew,
-          &r_next,
-        )?;
+    if !self.is_primary_circuit && EXTRA_R1CS {
+      for ii in 0..5000 {
+        let v = dummy.get_value().unwrap_or(E::Base::ZERO);
+        let new_dummy = AllocatedNum::alloc(cs.namespace(|| format!("dummy {ii}")), || Ok(v * v))?;
+
+        cs.enforce(
+          || "dummy constraint {ii}",
+          |lc| lc + dummy.get_variable(),
+          |lc| lc + dummy.get_variable(),
+          |lc| lc + new_dummy.get_variable(),
+        );
+
+        dummy = new_dummy;
       }
     }
 
