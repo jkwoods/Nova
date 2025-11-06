@@ -27,7 +27,7 @@ use serde::{Deserialize, Serialize};
 mod r1cs;
 use r1cs::{AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance};
 
-const EXTRA_R1CS: bool = true;
+const EXTRA_R1CS: bool = false;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
